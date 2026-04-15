@@ -5,8 +5,10 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DecimalFormat;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
 public final class ReportMerger {
+    private static final String REPORT_DATE_PLACEHOLDER = "[보고일]";
     public static final String TEMPLATE_FILE_NAME = "경영전략회의_template.docx";
     private static final int STAFF_CATEGORY_COLUMN_INDEX = 0;
     private static final int SALES_EXCLUDED_COLUMN_INDEX = 0;
@@ -69,6 +72,7 @@ public final class ReportMerger {
 
         try (InputStream templateStream = Files.newInputStream(templatePath);
                 XWPFDocument targetDocument = new XWPFDocument(templateStream)) {
+            applyReportDate(targetDocument);
 
             List<SourceDocument> sourceDocuments = new ArrayList<>();
             try {
@@ -99,6 +103,72 @@ public final class ReportMerger {
         try (InputStream inputStream = Files.newInputStream(sourceFile)) {
             return new XWPFDocument(inputStream);
         }
+    }
+
+    private static void applyReportDate(XWPFDocument document) {
+        String reportDate = buildNextMondayReportDate();
+        for (XWPFParagraph paragraph : document.getParagraphs()) {
+            replacePlaceholderInParagraph(paragraph, REPORT_DATE_PLACEHOLDER, reportDate);
+        }
+        for (XWPFTable table : document.getTables()) {
+            replacePlaceholderInTable(table, REPORT_DATE_PLACEHOLDER, reportDate);
+        }
+    }
+
+    private static void replacePlaceholderInTable(XWPFTable table, String placeholder, String replacement) {
+        for (XWPFTableRow row : table.getRows()) {
+            for (XWPFTableCell cell : row.getTableCells()) {
+                for (XWPFParagraph paragraph : cell.getParagraphs()) {
+                    replacePlaceholderInParagraph(paragraph, placeholder, replacement);
+                }
+                for (XWPFTable nestedTable : cell.getTables()) {
+                    replacePlaceholderInTable(nestedTable, placeholder, replacement);
+                }
+            }
+        }
+    }
+
+    private static void replacePlaceholderInParagraph(
+            XWPFParagraph paragraph,
+            String placeholder,
+            String replacement) {
+        String paragraphText = paragraph.getText();
+        if (paragraphText == null || !paragraphText.contains(placeholder)) {
+            return;
+        }
+
+        String updatedText = paragraphText.replace(placeholder, replacement);
+        CTRPr runProperties = null;
+        if (!paragraph.getRuns().isEmpty() && paragraph.getRuns().get(0).getCTR().isSetRPr()) {
+            runProperties = (CTRPr) paragraph.getRuns().get(0).getCTR().getRPr().copy();
+        }
+
+        for (int runIndex = paragraph.getRuns().size() - 1; runIndex >= 0; runIndex--) {
+            paragraph.removeRun(runIndex);
+        }
+
+        XWPFRun run = paragraph.createRun();
+        if (runProperties != null) {
+            run.getCTR().setRPr(runProperties);
+        }
+        run.setText(updatedText);
+    }
+
+    private static String buildNextMondayReportDate() {
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        return nextMonday.format(DateTimeFormatter.ISO_LOCAL_DATE) + " (" + getKoreanDayName(nextMonday.getDayOfWeek()) + ")";
+    }
+
+    private static String getKoreanDayName(DayOfWeek dayOfWeek) {
+        return switch (dayOfWeek) {
+            case MONDAY -> "월요일";
+            case TUESDAY -> "화요일";
+            case WEDNESDAY -> "수요일";
+            case THURSDAY -> "목요일";
+            case FRIDAY -> "금요일";
+            case SATURDAY -> "토요일";
+            case SUNDAY -> "일요일";
+        };
     }
 
     private static void mergeAppendSection(
