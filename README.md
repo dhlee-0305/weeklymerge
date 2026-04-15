@@ -61,7 +61,7 @@ report.doc.out.path=C:\Downloads\weekly_report\output\
 출력 폴더 안에 아래 템플릿 파일이 있어야 합니다.
 
 ```text
-{report.doc.out.path}\경영전략회의_template.docx
+{report.doc.out.path}\경영전략회의_template_java.docx
 ```
 
 생성 결과 파일 이름은 아래 형식입니다.

@@ -34,7 +34,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
 public final class ReportMerger {
     private static final String REPORT_DATE_PLACEHOLDER = "[보고일]";
-    public static final String TEMPLATE_FILE_NAME = "경영전략회의_template.docx";
+    public static final String TEMPLATE_FILE_NAME = "경영전략회의_template_java.docx";
     private static final int STAFF_CATEGORY_COLUMN_INDEX = 0;
     private static final int SALES_EXCLUDED_COLUMN_INDEX = 0;
 
