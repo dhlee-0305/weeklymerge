@@ -1,0 +1,14 @@
+target/
+out/
+
+*.class
+*.log
+
+.idea/
+.vscode/
+*.iml
+
+.DS_Store
+Thumbs.db
+
+app.properties
