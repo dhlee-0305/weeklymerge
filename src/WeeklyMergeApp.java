@@ -25,12 +25,11 @@ public class WeeklyMergeApp extends JFrame {
     private static final String CONFIG_FILE_NAME = "app.properties";
     private static final String REPORT_DOC_PATH_KEY = "report.doc.path";
     private static final String REPORT_DOC_OUT_PATH_KEY = "report.doc.out.path";
-    private static final Path DEFAULT_REPORT_DOC_PATH =
-            Paths.get(System.getProperty("user.home"), "Documents");
-    private static final Path REPORT_DOC_PATH =
-            loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY, DEFAULT_REPORT_DOC_PATH);
-    private static final Path REPORT_DOC_OUT_PATH =
-            loadConfiguredAbsolutePath(REPORT_DOC_OUT_PATH_KEY, DEFAULT_REPORT_DOC_PATH);
+    private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.home"), "Documents");
+    private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY,
+            DEFAULT_REPORT_DOC_PATH);
+    private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(REPORT_DOC_OUT_PATH_KEY,
+            DEFAULT_REPORT_DOC_PATH);
 
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> fileList = new JList<>(listModel);
@@ -103,14 +102,10 @@ public class WeeklyMergeApp extends JFrame {
         JScrollPane scrollPane = new JScrollPane(fileList);
         scrollPane.setPreferredSize(new Dimension(720, 360));
 
-        JButton showSelectedButton = new JButton("Show Selected Files");
-        showSelectedButton.addActionListener(event -> showSelectedFiles());
-
         JButton mergeReportsButton = new JButton("Merge Reports");
         mergeReportsButton.addActionListener(event -> mergeSelectedFiles());
 
         JPanel bottomPanel = new JPanel();
-        bottomPanel.add(showSelectedButton);
         bottomPanel.add(mergeReportsButton);
 
         add(infoPanel, BorderLayout.NORTH);
@@ -159,25 +154,6 @@ public class WeeklyMergeApp extends JFrame {
                     "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
-    }
-
-    private void showSelectedFiles() {
-        List<String> selectedFiles = fileList.getSelectedValuesList();
-
-        if (selectedFiles.isEmpty()) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "No files are selected.",
-                    "Notice",
-                    JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        JOptionPane.showMessageDialog(
-                this,
-                selectedFiles.stream().collect(Collectors.joining("\n")),
-                "Selected Files",
-                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void mergeSelectedFiles() {

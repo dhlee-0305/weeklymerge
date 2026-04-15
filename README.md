@@ -67,7 +67,7 @@ report.doc.out.path=C:\Downloads\weekly_report\output\
 생성 결과 파일 이름은 아래 형식입니다.
 
 ```text
-YYYYMMDD_경영전략회의.docx
+YYYYMMDD_IT서비스부문_주간보고.docx
 ```
 
 ## 프로그램 실행 방법

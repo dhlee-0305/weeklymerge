@@ -31,36 +31,30 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
 public final class ReportMerger {
-    public static final String TEMPLATE_FILE_NAME = "\uacbd\uc601\uc804\ub7b5\ud68c\uc758_template.docx";
+    public static final String TEMPLATE_FILE_NAME = "경영전략회의_template.docx";
     private static final int STAFF_CATEGORY_COLUMN_INDEX = 0;
     private static final int SALES_EXCLUDED_COLUMN_INDEX = 0;
 
-    private static final String OUTPUT_FILE_SUFFIX = "_\uacbd\uc601\uc804\ub7b5\ud68c\uc758.docx";
-    private static final SectionSpec PROJECT_STATUS_SECTION =
-            new SectionSpec(List.of("\ud504\ub85c\uc81d\ud2b8 \uc9c4\ud589 \ud604\ud669", "\ud504\ub85c\uc81d\ud2b8 \ud604\ud669"), 0, 1);
-    private static final SectionSpec STAFF_STATUS_SECTION =
-            new SectionSpec(List.of("\uc778\ub825 \uc6b4\uc6a9 \ud604\ud669", "\uc778\ub825 \ud604\ud669"), 1, 1);
-    private static final SectionSpec SALES_STATUS_SECTION =
-            new SectionSpec(
-                    List.of("\uac70\ub798\ucc98 \uc601\uc5c5/\ub3d9\ud5a5 \uc815\ubcf4",
-                            "\uac70\ub798\ucc98 \uc601\uc5c5 \ub3d9\ud5a5 \uc815\ubcf4",
-                            "\uc601\uc5c5/\ub3d9\ud5a5 \uc815\ubcf4"),
-                    2,
-                    1);
-    private static final List<String> SALES_FIXED_HEADER_ROW =
-            List.of("\uad6c\ubd84", "\uace0\uac1d\uc0ac/\ubd80\uc11c", "\uc8fc\uc694 \uc815\ubcf4", "\ube44\uace0");
-    private static final List<String> SALES_FIXED_HEADER_ROW_WITHOUT_FIRST_COLUMN =
-            List.of("\uace0\uac1d\uc0ac/\ubd80\uc11c", "\uc8fc\uc694 \uc815\ubcf4", "\ube44\uace0");
-    private static final SectionSpec ISSUES_SECTION =
-            new SectionSpec(
-                    List.of("\uc8fc\uc694 \uc5c5\ubb34 \uc0ac\ud56d",
-                            "\uc8fc\uc694\uc5c5\ubb34\uc0ac\ud56d",
-                            "\uc8fc\uc694 \uc5c5\ubb34",
-                            "\uc8fc\uc694\uc5c5\ubb34",
-                            "\uc8fc\uc694 \uc774\uc288",
-                            "\uc774\uc288 \uc0ac\ud56d"),
-                    3,
-                    1);
+    private static final String OUTPUT_FILE_SUFFIX = "_IT서비스부문_주간보고.docx";
+    private static final SectionSpec PROJECT_STATUS_SECTION = new SectionSpec(List.of("프로젝트 진행 현황", "프로젝트 현황"), 0, 1);
+    private static final SectionSpec STAFF_STATUS_SECTION = new SectionSpec(List.of("인력 운용 현황", "인력 현황"), 1, 1);
+    private static final SectionSpec SALES_STATUS_SECTION = new SectionSpec(
+            List.of("거래처 영업/동향 정보",
+                    "거래처 영업 동향 정보",
+                    "영업/동향 정보"),
+            2,
+            1);
+    private static final List<String> SALES_FIXED_HEADER_ROW = List.of("구분", "고객사/부서", "주요 정보", "비고");
+    private static final List<String> SALES_FIXED_HEADER_ROW_WITHOUT_FIRST_COLUMN = List.of("고객사/부서", "주요 정보", "비고");
+    private static final SectionSpec ISSUES_SECTION = new SectionSpec(
+            List.of("주요 업무 사항",
+                    "주요업무사항",
+                    "주요 업무",
+                    "주요업무",
+                    "주요 이슈",
+                    "이슈 사항"),
+            3,
+            1);
     private static final Pattern NUMERIC_PATTERN = Pattern.compile("[-+]?\\d+(\\.\\d+)?");
     private static final DecimalFormat NUMBER_FORMAT = new DecimalFormat("0.################");
 
@@ -122,6 +116,21 @@ public final class ReportMerger {
         List<String> templateFirstColumnValues = List.of();
         if (sectionSpec == SALES_STATUS_SECTION) {
             templateFirstColumnValues = extractTemplateColumnValues(targetTable, SALES_EXCLUDED_COLUMN_INDEX);
+            List<SalesRowData> salesRows = new ArrayList<>();
+            for (SourceDocument sourceDocument : sourceDocuments) {
+                XWPFTable sourceTable = findSectionTable(sourceDocument.document(), sectionSpec);
+                if (sourceTable == null) {
+                    continue;
+                }
+                salesRows.addAll(extractSalesRows(sourceTable, sectionSpec.dataStartRowIndex()));
+            }
+
+            rewriteSalesTableRowsPreservingColumn(
+                    targetTable,
+                    salesRows,
+                    templateFirstColumnValues,
+                    SALES_EXCLUDED_COLUMN_INDEX);
+            return;
         }
 
         for (SourceDocument sourceDocument : sourceDocuments) {
@@ -130,19 +139,7 @@ public final class ReportMerger {
                 continue;
             }
             List<List<String>> sectionRows = extractDataRows(sourceTable, sectionSpec.dataStartRowIndex());
-            if (sectionSpec == SALES_STATUS_SECTION) {
-                sectionRows = sanitizeSalesRows(sectionRows);
-            }
             mergedRows.addAll(sectionRows);
-        }
-
-        if (sectionSpec == SALES_STATUS_SECTION) {
-            rewriteTableRowsPreservingColumn(
-                    targetTable,
-                    mergedRows,
-                    templateFirstColumnValues,
-                    SALES_EXCLUDED_COLUMN_INDEX);
-            return;
         }
 
         rewriteTableRows(targetTable, mergedRows);
@@ -171,7 +168,8 @@ public final class ReportMerger {
             List<List<String>> rows = extractDataRows(sourceTable, STAFF_STATUS_SECTION.dataStartRowIndex());
             for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
                 List<String> row = rows.get(rowIndex);
-                int targetRowIndex = resolveStaffTargetRowIndex(row, rowIndex, templateCategoryIndexes, templateCategories);
+                int targetRowIndex = resolveStaffTargetRowIndex(row, rowIndex, templateCategoryIndexes,
+                        templateCategories);
                 if (targetRowIndex < 0) {
                     continue;
                 }
@@ -390,24 +388,8 @@ public final class ReportMerger {
         return fileName.trim();
     }
 
-
     private static boolean containsAny(String text, List<String> candidates) {
         return candidates.stream().anyMatch(text::contains);
-    }
-
-    private static List<List<String>> filterOutFixedRows(List<List<String>> rows, List<String> fixedRowValues) {
-        List<String> normalizedFixedRowValues = fixedRowValues.stream()
-                .map(ReportMerger::normalizeText)
-                .toList();
-        List<List<String>> filteredRows = new ArrayList<>();
-
-        for (List<String> row : rows) {
-            if (!matchesFixedRow(row, normalizedFixedRowValues)) {
-                filteredRows.add(row);
-            }
-        }
-
-        return filteredRows;
     }
 
     private static boolean matchesFixedRow(List<String> row, List<String> normalizedFixedRowValues) {
@@ -424,33 +406,59 @@ public final class ReportMerger {
         return !normalizedJoinedRow.isEmpty();
     }
 
-    private static List<List<String>> removeColumn(List<List<String>> rows, int columnIndex) {
-        List<List<String>> adjustedRows = new ArrayList<>();
-        for (List<String> row : rows) {
-            List<String> adjustedRow = new ArrayList<>();
-            for (int index = 0; index < row.size(); index++) {
-                if (index != columnIndex) {
-                    adjustedRow.add(row.get(index));
+    private static List<SalesRowData> extractSalesRows(XWPFTable table, int dataStartRowIndex) {
+        List<SalesRowData> rows = new ArrayList<>();
+        for (int rowIndex = Math.max(0, dataStartRowIndex); rowIndex < table.getNumberOfRows(); rowIndex++) {
+            XWPFTableRow row = table.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            List<String> rowValues = extractCellValues(row);
+            if (!isEmptyRow(rowValues)) {
+                rows.add(new SalesRowData(rowValues, new ArrayList<>(row.getTableCells())));
+            }
+        }
+
+        rows = filterOutFixedSalesRows(rows, SALES_FIXED_HEADER_ROW);
+        rows = removeFirstSalesColumn(rows);
+        rows = filterOutFixedSalesRows(rows, SALES_FIXED_HEADER_ROW_WITHOUT_FIRST_COLUMN);
+        return rows;
+    }
+
+    private static List<SalesRowData> filterOutFixedSalesRows(List<SalesRowData> rows, List<String> fixedRowValues) {
+        List<String> normalizedFixedRowValues = fixedRowValues.stream()
+                .map(ReportMerger::normalizeText)
+                .toList();
+        List<SalesRowData> filteredRows = new ArrayList<>();
+
+        for (SalesRowData row : rows) {
+            if (!matchesFixedRow(row.values(), normalizedFixedRowValues)) {
+                filteredRows.add(row);
+            }
+        }
+
+        return filteredRows;
+    }
+
+    private static List<SalesRowData> removeFirstSalesColumn(List<SalesRowData> rows) {
+        List<SalesRowData> adjustedRows = new ArrayList<>();
+        for (SalesRowData row : rows) {
+            List<String> adjustedValues = new ArrayList<>();
+            List<XWPFTableCell> adjustedCells = new ArrayList<>();
+            for (int index = 0; index < row.values().size(); index++) {
+                if (index != SALES_EXCLUDED_COLUMN_INDEX) {
+                    adjustedValues.add(row.values().get(index));
                 }
             }
-            adjustedRows.add(adjustedRow);
+            for (int index = 0; index < row.sourceCells().size(); index++) {
+                if (index != SALES_EXCLUDED_COLUMN_INDEX) {
+                    adjustedCells.add(row.sourceCells().get(index));
+                }
+            }
+            adjustedRows.add(new SalesRowData(adjustedValues, adjustedCells));
         }
         return adjustedRows;
-    }
-
-    private static List<List<String>> sanitizeSalesRows(List<List<String>> rows) {
-        List<List<String>> sanitizedRows = dropFirstRow(rows);
-        sanitizedRows = filterOutFixedRows(sanitizedRows, SALES_FIXED_HEADER_ROW);
-        sanitizedRows = removeColumn(sanitizedRows, SALES_EXCLUDED_COLUMN_INDEX);
-        sanitizedRows = filterOutFixedRows(sanitizedRows, SALES_FIXED_HEADER_ROW_WITHOUT_FIRST_COLUMN);
-        return sanitizedRows;
-    }
-
-    private static List<List<String>> dropFirstRow(List<List<String>> rows) {
-        if (rows.isEmpty()) {
-            return rows;
-        }
-        return new ArrayList<>(rows.subList(1, rows.size()));
     }
 
     private record SectionSpec(List<String> titles, int tableIndex, int dataStartRowIndex) {
@@ -542,9 +550,9 @@ public final class ReportMerger {
         }
     }
 
-    private static void rewriteTableRowsPreservingColumn(
+    private static void rewriteSalesTableRowsPreservingColumn(
             XWPFTable table,
-            List<List<String>> rows,
+            List<SalesRowData> rows,
             List<String> preservedColumnValues,
             int preservedColumnIndex) throws IOException {
         if (table == null || table.getNumberOfRows() == 0) {
@@ -570,7 +578,7 @@ public final class ReportMerger {
         }
 
         clearRow(templateRow);
-        setRowValuesWithOffset(templateRow, rows.get(0), preservedColumnIndex + 1);
+        copySalesRow(templateRow, rows.get(0), preservedColumnIndex + 1);
         if (templateRow.getTableCells().size() > preservedColumnIndex && !preservedColumnValues.isEmpty()) {
             setCellText(templateRow.getCell(preservedColumnIndex), preservedColumnValues.get(0));
         }
@@ -578,10 +586,39 @@ public final class ReportMerger {
         for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
             XWPFTableRow row = createStyledRow(table, templateRow);
             clearRow(row);
-            setRowValuesWithOffset(row, rows.get(rowIndex), preservedColumnIndex + 1);
+            copySalesRow(row, rows.get(rowIndex), preservedColumnIndex + 1);
             if (row.getTableCells().size() > preservedColumnIndex && rowIndex < preservedColumnValues.size()) {
                 setCellText(row.getCell(preservedColumnIndex), preservedColumnValues.get(rowIndex));
             }
+        }
+    }
+
+    private static void copySalesRow(XWPFTableRow targetRow, SalesRowData sourceRow, int startColumnIndex) {
+        int targetColumnIndex = startColumnIndex;
+        for (XWPFTableCell sourceCell : sourceRow.sourceCells()) {
+            XWPFTableCell targetCell = getOrCreateCell(targetRow, targetColumnIndex++);
+            copyCellContentPreservingStyle(sourceCell, targetCell);
+        }
+    }
+
+    private static void copyCellContentPreservingStyle(XWPFTableCell sourceCell, XWPFTableCell targetCell) {
+        clearCellText(targetCell);
+
+        while (targetCell.getParagraphs().size() > 1) {
+            targetCell.removeParagraph(targetCell.getParagraphs().size() - 1);
+        }
+
+        for (int paragraphIndex = targetCell.getParagraphs().size() - 1; paragraphIndex >= 0; paragraphIndex--) {
+            targetCell.removeParagraph(paragraphIndex);
+        }
+
+        for (XWPFParagraph sourceParagraph : sourceCell.getParagraphs()) {
+            XWPFParagraph targetParagraph = targetCell.addParagraph();
+            targetParagraph.getCTP().set((CTP) sourceParagraph.getCTP().copy());
+        }
+
+        if (targetCell.getParagraphs().isEmpty()) {
+            targetCell.addParagraph();
         }
     }
 
@@ -669,16 +706,6 @@ public final class ReportMerger {
         }
     }
 
-    private static void setRowValuesWithOffset(XWPFTableRow row, List<String> values, int startColumnIndex) {
-        int limit = Math.max(row.getTableCells().size(), values.size() + startColumnIndex);
-        for (int cellIndex = startColumnIndex; cellIndex < limit; cellIndex++) {
-            XWPFTableCell cell = getOrCreateCell(row, cellIndex);
-            int valueIndex = cellIndex - startColumnIndex;
-            String value = valueIndex < values.size() ? values.get(valueIndex) : "";
-            setCellText(cell, value);
-        }
-    }
-
     private static void clearCellText(XWPFTableCell cell) {
         for (int paragraphIndex = cell.getParagraphs().size() - 1; paragraphIndex >= 0; paragraphIndex--) {
             XWPFParagraph paragraph = cell.getParagraphs().get(paragraphIndex);
@@ -751,6 +778,7 @@ public final class ReportMerger {
         private BigDecimal numericSum = BigDecimal.ZERO;
         private boolean hasValue;
         private boolean allNumeric = true;
+
         CellAccumulator() {
         }
 
@@ -786,5 +814,8 @@ public final class ReportMerger {
     }
 
     private record SourceDocument(Path path, XWPFDocument document) {
+    }
+
+    private record SalesRowData(List<String> values, List<XWPFTableCell> sourceCells) {
     }
 }
