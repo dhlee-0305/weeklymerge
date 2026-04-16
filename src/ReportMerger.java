@@ -33,6 +33,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
 public final class ReportMerger {
+    // 템플릿 문서에서 실제 보고 일자로 치환할 플레이스홀더다.
     private static final String REPORT_DATE_PLACEHOLDER = "[보고일]";
     public static final String TEMPLATE_FILE_NAME = "경영전략회의_template_java.docx";
     private static final int STAFF_CATEGORY_COLUMN_INDEX = 0;
@@ -64,8 +65,17 @@ public final class ReportMerger {
     private ReportMerger() {
     }
 
+    /**
+     * 여러 개의 원본 보고서를 템플릿 문서에 병합해 최종 주간보고 파일을 생성한다.
+     *
+     * @param sourceFiles 병합 대상 원본 문서 목록
+     * @param outputDirectory 템플릿 파일이 위치하고 결과 파일을 저장할 디렉터리
+     * @return 생성된 결과 문서 경로
+     * @throws IOException 템플릿이 없거나 문서 입출력에 실패한 경우
+     */
     public static Path mergeReports(List<Path> sourceFiles, Path outputDirectory) throws IOException {
         Path templatePath = outputDirectory.resolve(TEMPLATE_FILE_NAME);
+        // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
         if (!Files.exists(templatePath)) {
             throw new IOException("Template file not found: " + templatePath.toAbsolutePath());
         }
@@ -80,11 +90,13 @@ public final class ReportMerger {
                     sourceDocuments.add(new SourceDocument(sourceFile, openDocument(sourceFile)));
                 }
 
+                // 결과 문서는 템플릿 섹션 순서를 유지하면서 각 섹션별 병합을 수행한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
                 mergeStaffSection(targetDocument, sourceDocuments);
                 mergeAppendSection(targetDocument, sourceDocuments, SALES_STATUS_SECTION);
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
 
+                // 출력 파일명은 실행일 기준 yyyyMMdd 형식 접두사와 고정 suffix로 구성된다.
                 Path outputFile = outputDirectory.resolve(
                         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + OUTPUT_FILE_SUFFIX);
                 try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
@@ -92,6 +104,7 @@ public final class ReportMerger {
                 }
                 return outputFile;
             } finally {
+                // 원본 문서를 모두 닫아 파일 잠금과 리소스 누수를 방지한다.
                 for (SourceDocument sourceDocument : sourceDocuments) {
                     sourceDocument.document().close();
                 }
@@ -99,12 +112,24 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 파일 경로를 기준으로 Word 문서를 열어 POI 문서 객체로 변환한다.
+     *
+     * @param sourceFile 열 대상 파일 경로
+     * @return 메모리에 로드된 Word 문서
+     * @throws IOException 파일을 읽지 못한 경우
+     */
     private static XWPFDocument openDocument(Path sourceFile) throws IOException {
         try (InputStream inputStream = Files.newInputStream(sourceFile)) {
             return new XWPFDocument(inputStream);
         }
     }
 
+    /**
+     * 문서 전체에서 보고일 플레이스홀더를 찾아 다음 주 월요일 문자열로 치환한다.
+     *
+     * @param document 플레이스홀더를 치환할 대상 문서
+     */
     private static void applyReportDate(XWPFDocument document) {
         String reportDate = buildNextMondayReportDate();
         for (XWPFParagraph paragraph : document.getParagraphs()) {
@@ -121,6 +146,7 @@ public final class ReportMerger {
                 for (XWPFParagraph paragraph : cell.getParagraphs()) {
                     replacePlaceholderInParagraph(paragraph, placeholder, replacement);
                 }
+                // 셀 안의 중첩 표도 같은 규칙으로 재귀 치환한다.
                 for (XWPFTable nestedTable : cell.getTables()) {
                     replacePlaceholderInTable(nestedTable, placeholder, replacement);
                 }
@@ -128,11 +154,19 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 문단 내 플레이스홀더를 치환하고 첫 run의 서식을 최대한 유지한다.
+     *
+     * @param paragraph 치환 대상 문단
+     * @param placeholder 찾을 문자열
+     * @param replacement 대체할 문자열
+     */
     private static void replacePlaceholderInParagraph(
             XWPFParagraph paragraph,
             String placeholder,
             String replacement) {
         String paragraphText = paragraph.getText();
+        // 플레이스홀더가 없는 문단은 수정하지 않아 불필요한 스타일 변경을 막는다.
         if (paragraphText == null || !paragraphText.contains(placeholder)) {
             return;
         }
@@ -151,14 +185,26 @@ public final class ReportMerger {
         if (runProperties != null) {
             run.getCTR().setRPr(runProperties);
         }
+        // 치환 후 문단 전체 텍스트는 하나의 run으로 다시 기록된다.
         run.setText(updatedText);
     }
 
+    /**
+     * 다음 주 월요일 날짜를 `yyyy-MM-dd (요일)` 형식으로 생성한다.
+     *
+     * @return 예: `2026-04-20 (월요일)` 형태의 보고일 문자열
+     */
     private static String buildNextMondayReportDate() {
         LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
         return nextMonday.format(DateTimeFormatter.ISO_LOCAL_DATE) + " (" + getKoreanDayName(nextMonday.getDayOfWeek()) + ")";
     }
 
+    /**
+     * 요일 enum을 한국어 요일 문자열로 변환한다.
+     *
+     * @param dayOfWeek 변환할 요일
+     * @return 한국어 요일명
+     */
     private static String getKoreanDayName(DayOfWeek dayOfWeek) {
         return switch (dayOfWeek) {
             case MONDAY -> "월요일";
@@ -171,6 +217,15 @@ public final class ReportMerger {
         };
     }
 
+    /**
+     * 일반 섹션 표를 병합한다.
+     * 영업 현황 섹션은 첫 번째 열을 보존해야 하므로 별도 분기 처리한다.
+     *
+     * @param targetDocument 병합 결과를 기록할 템플릿 문서
+     * @param sourceDocuments 병합할 원본 문서 목록
+     * @param sectionSpec 섹션 제목과 표 위치 정보
+     * @throws IOException 템플릿 섹션 표를 찾지 못한 경우
+     */
     private static void mergeAppendSection(
             XWPFDocument targetDocument,
             List<SourceDocument> sourceDocuments,
@@ -185,6 +240,7 @@ public final class ReportMerger {
         List<List<String>> mergedRows = new ArrayList<>();
         List<String> templateFirstColumnValues = List.of();
         if (sectionSpec == SALES_STATUS_SECTION) {
+            // 영업 현황은 템플릿 첫 열을 유지하고 나머지 열만 원본 데이터로 다시 채운다.
             templateFirstColumnValues = extractTemplateColumnValues(targetTable, SALES_EXCLUDED_COLUMN_INDEX);
             List<SalesRowData> salesRows = new ArrayList<>();
             for (SourceDocument sourceDocument : sourceDocuments) {
@@ -212,9 +268,18 @@ public final class ReportMerger {
             mergedRows.addAll(sectionRows);
         }
 
+        // 일반 섹션은 추출된 행을 순서대로 이어 붙여 템플릿 표를 다시 작성한다.
         rewriteTableRows(targetTable, mergedRows);
     }
 
+    /**
+     * 인력 현황 섹션을 카테고리 기준으로 병합한다.
+     * 숫자 셀은 합산하고, 문자열 셀은 줄바꿈으로 이어 붙이는 동작을 기대한다.
+     *
+     * @param targetDocument 병합 결과를 기록할 템플릿 문서
+     * @param sourceDocuments 병합할 원본 문서 목록
+     * @throws IOException 템플릿 섹션 표를 찾지 못한 경우
+     */
     private static void mergeStaffSection(
             XWPFDocument targetDocument,
             List<SourceDocument> sourceDocuments) throws IOException {
@@ -238,6 +303,7 @@ public final class ReportMerger {
             List<List<String>> rows = extractDataRows(sourceTable, STAFF_STATUS_SECTION.dataStartRowIndex());
             for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
                 List<String> row = rows.get(rowIndex);
+                // 카테고리명이 일치하면 해당 템플릿 행에 누적하고, 아니면 원래 순서를 fallback으로 사용한다.
                 int targetRowIndex = resolveStaffTargetRowIndex(row, rowIndex, templateCategoryIndexes,
                         templateCategories);
                 if (targetRowIndex < 0) {
@@ -248,6 +314,7 @@ public final class ReportMerger {
                         key -> new LinkedHashMap<>());
                 for (int colIndex = 0; colIndex < row.size(); colIndex++) {
                     if (colIndex == STAFF_CATEGORY_COLUMN_INDEX) {
+                        // 첫 번째 열은 분류 기준이므로 누적 대상에서 제외한다.
                         continue;
                     }
 
@@ -269,9 +336,16 @@ public final class ReportMerger {
             mergedRows.add(mergedRow);
         }
 
+        // 최종 출력 시 카테고리 열은 템플릿 기준 값을 유지해 표 구조를 안정적으로 맞춘다.
         rewriteStaffTableRows(targetTable, mergedRows, templateCategories);
     }
 
+    /**
+     * 주요 이슈 섹션을 원본 문서별로 추출해 결과 문서 맨 뒤에 덧붙인다.
+     *
+     * @param targetDocument 내용을 추가할 대상 문서
+     * @param sourceDocuments 원본 문서 목록
+     */
     private static void appendIssuesSectionToDocumentEnd(
             XWPFDocument targetDocument,
             List<SourceDocument> sourceDocuments) {
@@ -285,6 +359,7 @@ public final class ReportMerger {
             }
 
             if (appendedAnyContent) {
+                // 두 번째 팀부터는 빈 문단을 추가해 섹션 경계를 눈에 띄게 만든다.
                 appendBlankParagraph(targetDocument);
             }
 
@@ -295,6 +370,7 @@ public final class ReportMerger {
             for (IBodyElement bodyElement : sectionElements) {
                 if (bodyElement instanceof XWPFParagraph paragraph
                         && isIssuesTitleParagraph(paragraph)) {
+                    // 팀명을 별도 헤더로 추가하므로 원본 섹션 제목은 중복 출력하지 않는다.
                     continue;
                 }
                 appendBodyElement(targetDocument, bodyElement);
@@ -315,6 +391,15 @@ public final class ReportMerger {
         return indexes;
     }
 
+    /**
+     * 인력 현황의 한 행이 템플릿 어느 행에 매핑될지 결정한다.
+     *
+     * @param row 현재 원본 데이터 행
+     * @param fallbackRowIndex 카테고리 매칭 실패 시 사용할 기본 행 번호
+     * @param templateCategoryIndexes 템플릿 카테고리와 행 번호 매핑
+     * @param templateCategories 템플릿 카테고리 목록
+     * @return 대상 행 번호, 매핑 불가 시 -1
+     */
     private static int resolveStaffTargetRowIndex(
             List<String> row,
             int fallbackRowIndex,
@@ -328,9 +413,17 @@ public final class ReportMerger {
             }
         }
 
+        // fallback 행도 템플릿 범위를 벗어나면 기록하지 않는다.
         return fallbackRowIndex < templateCategories.size() ? fallbackRowIndex : -1;
     }
 
+    /**
+     * 제목 문단 또는 표 내부 텍스트를 바탕으로 섹션의 표를 찾는다.
+     *
+     * @param document 탐색할 문서
+     * @param sectionSpec 섹션 식별 정보
+     * @return 찾은 표, 없으면 null
+     */
     private static XWPFTable findSectionTable(XWPFDocument document, SectionSpec sectionSpec) {
         List<String> normalizedTitles = sectionSpec.titles().stream()
                 .map(ReportMerger::normalizeText)
@@ -341,6 +434,7 @@ public final class ReportMerger {
             if (bodyElement instanceof XWPFParagraph) {
                 String paragraphText = normalizeText(((XWPFParagraph) bodyElement).getText());
                 if (containsAny(paragraphText, normalizedTitles)) {
+                    // 제목 문단을 찾으면 바로 다음 표를 해당 섹션 표로 간주한다.
                     nextTableMatches = true;
                 } else if (!paragraphText.isEmpty()) {
                     nextTableMatches = false;
@@ -355,6 +449,7 @@ public final class ReportMerger {
                 }
 
                 if (containsAny(normalizeText(table.getText()), normalizedTitles)) {
+                    // 제목 문단이 없더라도 표 내부에 섹션명이 포함되면 보조 규칙으로 매칭한다.
                     return table;
                 }
 
@@ -369,6 +464,13 @@ public final class ReportMerger {
         return null;
     }
 
+    /**
+     * 특정 섹션 제목이 시작된 지점부터 문서 끝까지의 본문 요소를 추출한다.
+     *
+     * @param document 탐색할 문서
+     * @param sectionSpec 섹션 식별 정보
+     * @return 시작 지점 이후의 문단/표 목록
+     */
     private static List<IBodyElement> extractSectionElementsFromStartToEnd(
             XWPFDocument document,
             SectionSpec sectionSpec) {
@@ -384,6 +486,7 @@ public final class ReportMerger {
                 String normalizedText = normalizeText(text);
 
                 if (!collecting && containsAny(normalizedText, normalizedTitles)) {
+                    // 주요 이슈는 끝 경계 없이 문서 끝까지 이어진다고 보고 수집을 시작한다.
                     collecting = true;
                 }
 
@@ -443,6 +546,13 @@ public final class ReportMerger {
         cursor.dispose();
     }
 
+    /**
+     * 파일명에서 팀명을 추출한다.
+     * 확장자를 제거한 뒤 마지막 `_` 뒤의 문자열을 팀명으로 사용한다.
+     *
+     * @param sourceFile 팀명이 포함된 원본 파일 경로
+     * @return 추출된 팀명
+     */
     private static String extractTeamName(Path sourceFile) {
         String fileName = sourceFile.getFileName().toString();
         int extensionIndex = fileName.lastIndexOf('.');
@@ -476,6 +586,14 @@ public final class ReportMerger {
         return !normalizedJoinedRow.isEmpty();
     }
 
+    /**
+     * 영업 현황 표에서 실제 데이터 행만 추출한다.
+     * 반복 헤더와 빈 행을 제거한 뒤, 템플릿이 보존할 첫 번째 열은 제외한다.
+     *
+     * @param table 원본 영업 현황 표
+     * @param dataStartRowIndex 데이터가 시작되는 행 인덱스
+     * @return 정제된 영업 행 목록
+     */
     private static List<SalesRowData> extractSalesRows(XWPFTable table, int dataStartRowIndex) {
         List<SalesRowData> rows = new ArrayList<>();
         for (int rowIndex = Math.max(0, dataStartRowIndex); rowIndex < table.getNumberOfRows(); rowIndex++) {
@@ -490,6 +608,7 @@ public final class ReportMerger {
             }
         }
 
+        // 원본 문서 중간에 반복 삽입된 헤더 행이 병합 데이터로 들어오지 않게 제거한다.
         rows = filterOutFixedSalesRows(rows, SALES_FIXED_HEADER_ROW);
         rows = removeFirstSalesColumn(rows);
         rows = filterOutFixedSalesRows(rows, SALES_FIXED_HEADER_ROW_WITHOUT_FIRST_COLUMN);
@@ -534,6 +653,13 @@ public final class ReportMerger {
     private record SectionSpec(List<String> titles, int tableIndex, int dataStartRowIndex) {
     }
 
+    /**
+     * 표에서 비어 있지 않은 데이터 행만 추출한다.
+     *
+     * @param table 원본 표
+     * @param dataStartRowIndex 데이터 시작 행 인덱스
+     * @return 셀 문자열 목록으로 구성된 행들
+     */
     private static List<List<String>> extractDataRows(XWPFTable table, int dataStartRowIndex) {
         List<List<String>> rows = new ArrayList<>();
         for (int rowIndex = Math.max(0, dataStartRowIndex); rowIndex < table.getNumberOfRows(); rowIndex++) {
@@ -557,6 +683,13 @@ public final class ReportMerger {
         return cellValues;
     }
 
+    /**
+     * 템플릿 표의 특정 열 값을 읽어 기준 데이터로 사용한다.
+     *
+     * @param table 템플릿 표
+     * @param columnIndex 추출할 열 인덱스
+     * @return 추출된 열 값 목록
+     */
     private static List<String> extractTemplateColumnValues(XWPFTable table, int columnIndex) {
         List<String> values = new ArrayList<>();
         for (int rowIndex = 1; rowIndex < table.getNumberOfRows(); rowIndex++) {
@@ -570,6 +703,13 @@ public final class ReportMerger {
         return values;
     }
 
+    /**
+     * 템플릿 표의 데이터 영역을 새 행 목록으로 다시 구성한다.
+     *
+     * @param table 다시 작성할 표
+     * @param rows 기록할 데이터 행 목록
+     * @throws IOException 템플릿 표 구조가 비정상인 경우
+     */
     private static void rewriteTableRows(XWPFTable table, List<List<String>> rows) throws IOException {
         if (table == null || table.getNumberOfRows() == 0) {
             throw new IOException("Template table is empty.");
@@ -586,6 +726,7 @@ public final class ReportMerger {
         }
 
         if (rows.isEmpty()) {
+            // 병합 대상이 없으면 템플릿의 첫 데이터 행만 비워 두는 결과를 만든다.
             clearRow(templateRow);
             return;
         }
@@ -600,6 +741,14 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 인력 현황 표를 다시 작성한 뒤 카테고리 열을 템플릿 값으로 복원한다.
+     *
+     * @param table 대상 표
+     * @param rows 병합된 데이터 행
+     * @param templateCategories 템플릿 카테고리 목록
+     * @throws IOException 템플릿 표 구조가 비정상인 경우
+     */
     private static void rewriteStaffTableRows(
             XWPFTable table,
             List<List<String>> rows,
@@ -616,10 +765,20 @@ public final class ReportMerger {
             if (row == null || row.getTableCells().size() <= STAFF_CATEGORY_COLUMN_INDEX) {
                 continue;
             }
+            // 첫 열은 누적 결과가 아니라 분류 기준을 보여주는 열이므로 템플릿 값을 유지한다.
             setCellText(row.getCell(STAFF_CATEGORY_COLUMN_INDEX), templateCategories.get(rowOffset));
         }
     }
 
+    /**
+     * 영업 현황 표를 다시 작성하되 특정 열은 템플릿 값을 유지한다.
+     *
+     * @param table 대상 표
+     * @param rows 병합된 영업 데이터
+     * @param preservedColumnValues 유지할 템플릿 열 값
+     * @param preservedColumnIndex 유지할 열 인덱스
+     * @throws IOException 템플릿 표 구조가 비정상인 경우
+     */
     private static void rewriteSalesTableRowsPreservingColumn(
             XWPFTable table,
             List<SalesRowData> rows,
@@ -641,6 +800,7 @@ public final class ReportMerger {
 
         if (rows.isEmpty()) {
             clearRow(templateRow);
+            // 영업 데이터가 없어도 보존 열은 남겨 템플릿 구성을 유지한다.
             if (templateRow.getTableCells().size() > preservedColumnIndex && !preservedColumnValues.isEmpty()) {
                 setCellText(templateRow.getCell(preservedColumnIndex), preservedColumnValues.get(0));
             }
@@ -671,6 +831,12 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 셀의 문단 구조와 내용을 복사해 서식 손실을 최소화한다.
+     *
+     * @param sourceCell 원본 셀
+     * @param targetCell 대상 셀
+     */
     private static void copyCellContentPreservingStyle(XWPFTableCell sourceCell, XWPFTableCell targetCell) {
         clearCellText(targetCell);
 
@@ -692,6 +858,13 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 템플릿 행의 스타일을 복사한 새 행을 생성한다.
+     *
+     * @param table 행을 추가할 표
+     * @param templateRow 스타일 기준 행
+     * @return 스타일이 적용된 새 행
+     */
     private static XWPFTableRow createStyledRow(XWPFTable table, XWPFTableRow templateRow) {
         XWPFTableRow newRow = table.createRow();
         copyRowStyle(templateRow, newRow);
@@ -792,6 +965,13 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 셀에 텍스트를 기록한다.
+     * 줄바꿈은 Word 줄바꿈으로 변환되므로 결과 문서에서도 여러 줄 출력이 유지된다.
+     *
+     * @param cell 값을 기록할 셀
+     * @param value 기록할 문자열
+     */
     private static void setCellText(XWPFTableCell cell, String value) {
         CTRPr runProperties = null;
         if (!cell.getParagraphs().isEmpty()) {
@@ -812,6 +992,7 @@ public final class ReportMerger {
 
         for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
             if (lineIndex > 0) {
+                // 여러 줄 문자열은 Word 내부 줄바꿈으로 순서대로 출력된다.
                 run.addBreak();
             }
             run.setText(lines[lineIndex]);
@@ -835,14 +1016,25 @@ public final class ReportMerger {
         return value == null ? "" : value.replaceAll("\\s+", "");
     }
 
+    /**
+     * 문자열이 숫자 형식이면 BigDecimal로 변환한다.
+     *
+     * @param value 변환할 문자열
+     * @return 숫자면 BigDecimal, 아니면 null
+     */
     private static BigDecimal parseNumber(String value) {
         String normalized = value.replace(",", "").trim();
+        // 숫자가 아니면 합산 대신 문자열 병합 대상으로 처리하기 위해 null을 반환한다.
         if (!NUMERIC_PATTERN.matcher(normalized).matches()) {
             return null;
         }
         return new BigDecimal(normalized);
     }
 
+    /**
+     * 인력 현황 셀 값을 누적하기 위한 보조 클래스다.
+     * 모든 값이 숫자면 합계를 반환하고, 하나라도 문자열이면 줄바꿈 연결 결과를 반환한다.
+     */
     private static final class CellAccumulator {
         private final List<String> values = new ArrayList<>();
         private BigDecimal numericSum = BigDecimal.ZERO;
@@ -855,6 +1047,7 @@ public final class ReportMerger {
         void add(String value) {
             String cleanedValue = cleanCellText(value);
             if (cleanedValue.isEmpty()) {
+                // 빈 값은 병합 결과에 영향을 주지 않으므로 무시한다.
                 return;
             }
 
@@ -863,6 +1056,7 @@ public final class ReportMerger {
 
             BigDecimal parsedNumber = parseNumber(cleanedValue);
             if (parsedNumber == null) {
+                // 하나라도 숫자가 아니면 이 셀의 최종 결과는 문자열 병합으로 전환된다.
                 allNumeric = false;
                 return;
             }
@@ -876,9 +1070,11 @@ public final class ReportMerger {
             }
 
             if (allNumeric) {
+                // 숫자만 누적된 셀은 합산 결과가 최종 출력값이 된다.
                 return NUMBER_FORMAT.format(numericSum);
             }
 
+            // 문자열이 포함된 셀은 입력 순서를 유지하며 줄바꿈으로 이어 붙인다.
             return String.join("\n", values);
         }
     }
