@@ -28,8 +28,9 @@ public class WeeklyMergeApp extends JFrame {
     private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.dir"));
     private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY,
             DEFAULT_REPORT_DOC_PATH);
+    private static final Path DEFAULT_REPORT_DOC_OUT_PATH = Paths.get(System.getProperty("user.dir"), "output");
     private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(REPORT_DOC_OUT_PATH_KEY,
-            DEFAULT_REPORT_DOC_PATH);
+            DEFAULT_REPORT_DOC_OUT_PATH);
 
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> fileList = new JList<>(listModel);
