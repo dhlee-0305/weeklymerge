@@ -131,10 +131,14 @@ public class WeeklyMergeApp extends JFrame {
         JScrollPane scrollPane = new JScrollPane(fileList);
         scrollPane.setPreferredSize(new Dimension(720, 360));
 
-        JButton mergeReportsButton = new JButton("Merge Reports");
+        JButton refreshButton = new JButton("폴더 다시 읽기");
+        refreshButton.addActionListener(event -> loadDocFiles());
+
+        JButton mergeReportsButton = new JButton("주간보고 병합");
         mergeReportsButton.addActionListener(event -> mergeSelectedFiles());
 
         JPanel bottomPanel = new JPanel();
+        bottomPanel.add(refreshButton);
         bottomPanel.add(mergeReportsButton);
 
         add(infoPanel, BorderLayout.NORTH);
