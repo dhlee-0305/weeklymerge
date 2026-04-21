@@ -11,12 +11,16 @@
 
 사용자는 UI에서 병합할 파일을 선택하고, 결과 문서를 지정된 출력 폴더에 생성할 수 있습니다.
 
+
+
 ## 기술 스택
 
 - Java 17
 - Maven
 - Java Swing
 - Apache POI `poi-ooxml 5.4.1`
+
+
 
 ## 개발 환경 셋팅
 
@@ -70,20 +74,42 @@ report.doc.out.path=C:\Downloads\weekly_report\output\
 YYYYMMDD_IT서비스부문_주간보고.docx
 ```
 
+
+
 ## 프로그램 실행 방법
 
-프로젝트 루트에서 아래 명령으로 실행합니다.
+### 1. 개발 중 실행
+
+프로젝트 루트에서 아래 명령으로 바로 실행합니다.
 
 ```powershell
 mvn clean compile exec:java
 ```
 
-실행 후 동작 방식:
+### 2. 배포용 실행 파일 생성
+
+아래 명령으로 모든 의존 라이브러리가 포함된 단일 JAR 파일을 생성합니다.
+
+```powershell
+mvn clean package
+```
+
+빌드가 완료되면 `target/weeklymerge.jar` 파일이 생성됩니다.
+
+생성된 JAR 파일과 `app.properties`를 같은 폴더에 두고 아래 명령으로 실행합니다.
+
+```powershell
+java -jar weeklymerge.jar
+```
+
+### 3. 실행 후 동작 방식
 
 1. `report.doc.path` 폴더의 `.docx` 파일 목록을 화면에 표시합니다.
 2. 병합할 파일을 하나 이상 선택합니다.
 3. `Merge Reports` 버튼을 클릭합니다.
 4. 통합 문서가 `report.doc.out.path` 폴더에 생성됩니다.
+
+
 
 ## 프로젝트 구조
 
@@ -97,8 +123,9 @@ weeklymerge
 └─ README.md
 ```
 
+
+
 ## 참고 사항
 
 - `app.properties`는 로컬 환경 설정 파일이므로 Git에 커밋하지 않는 것을 권장합니다.
-- 원본 문서와 템플릿 문서의 표 구조가 크게 다르면 병합 결과가 예상과 다를 수 있습니다.
-- `주요 업무 사항`은 각 문서의 해당 섹션을 읽어와 통합 문서 마지막에 추가합니다.
+- 원본 문서와 템플릿 문서의 표 구조가 다르면 병합 결과가 예상과 다를 수 있습니다.
