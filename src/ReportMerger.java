@@ -190,12 +190,12 @@ public final class ReportMerger {
     }
 
     /**
-     * 다음 주 월요일 날짜를 `yyyy-MM-dd (요일)` 형식으로 생성한다.
+     * 오늘이 월요일이면 오늘 날짜를, 그렇지 않으면 다음 주 월요일 날짜를 `yyyy-MM-dd (요일)` 형식으로 생성한다.
      *
      * @return 예: `2026-04-20 (월요일)` 형태의 보고일 문자열
      */
     private static String buildNextMondayReportDate() {
-        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
         return nextMonday.format(DateTimeFormatter.ISO_LOCAL_DATE) + " (" + getKoreanDayName(nextMonday.getDayOfWeek()) + ")";
     }
 

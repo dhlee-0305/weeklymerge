@@ -48,7 +48,7 @@ public class WeeklyMergeApp extends JFrame {
     /**
      * 설정 파일에서 절대 경로 값을 읽어 오고, 유효하지 않으면 기본 경로를 반환한다.
      *
-     * @param key 읽어올 설정 키
+     * @param key         읽어올 설정 키
      * @param defaultPath 설정이 없거나 잘못된 경우 사용할 기본 경로
      * @return 정규화된 절대 경로 또는 기본 경로
      */
@@ -83,7 +83,7 @@ public class WeeklyMergeApp extends JFrame {
      * 설정 파일에서 특정 키의 값을 직접 찾아 반환한다.
      *
      * @param configPath 설정 파일 경로
-     * @param key 찾을 설정 키
+     * @param key        찾을 설정 키
      * @return 키에 대응하는 값, 없으면 빈 문자열
      * @throws IOException 설정 파일을 읽는 중 오류가 발생한 경우
      */
