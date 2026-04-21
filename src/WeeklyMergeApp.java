@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -22,11 +21,11 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 
 public class WeeklyMergeApp extends JFrame {
-    // 설정 파일이 없거나 값이 잘못된 경우 Documents 폴더를 기본 경로로 사용한다.
+    // 설정 파일이 없거나 값이 잘못된 경우 현재 폴더를 기본 경로로 사용한다.
     private static final String CONFIG_FILE_NAME = "app.properties";
     private static final String REPORT_DOC_PATH_KEY = "report.doc.path";
     private static final String REPORT_DOC_OUT_PATH_KEY = "report.doc.out.path";
-    private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.home"), "Documents");
+    private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.dir"));
     private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY,
             DEFAULT_REPORT_DOC_PATH);
     private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(REPORT_DOC_OUT_PATH_KEY,
