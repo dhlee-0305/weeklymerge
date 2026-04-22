@@ -32,6 +32,10 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTrPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
+/**
+ * 여러 개의 주간 보고 Word 문서를 하나의 결과 문서로 병합하는 유틸리티 클래스다.
+ * 템플릿 문서를 기준으로 섹션별 데이터를 합치고, 필요한 서식은 최대한 유지한다.
+ */
 public final class ReportMerger {
     // 템플릿 문서에서 실제 보고 일자로 치환할 플레이스홀더다.
     private static final String REPORT_DATE_PLACEHOLDER = "[보고일]";
@@ -67,6 +71,10 @@ public final class ReportMerger {
     private ReportMerger() {
     }
 
+    /**
+     * 병합 진행 상태를 외부 UI에 전달하기 위한 콜백 인터페이스다.
+     * percent는 0~100 범위의 진행률, message는 현재 단계 설명으로 사용된다.
+     */
     @FunctionalInterface
     public interface ProgressListener {
         void onProgress(int percent, String message);
@@ -84,6 +92,15 @@ public final class ReportMerger {
         return mergeReports(sourceFiles, outputDirectory, NO_OP_PROGRESS_LISTENER);
     }
 
+    /**
+     * 병합 진행률을 외부에 보고하면서 결과 문서를 생성한다.
+     *
+     * @param sourceFiles 병합할 원본 보고서 목록
+     * @param outputDirectory 템플릿과 결과 파일이 위치할 출력 폴더
+     * @param progressListener 진행 상태를 전달받을 콜백, 없으면 무시된다
+     * @return 생성된 결과 문서 경로
+     * @throws IOException 템플릿 또는 원본 문서를 읽거나 쓰는 중 오류가 발생한 경우
+     */
     public static Path mergeReports(
             List<Path> sourceFiles,
             Path outputDirectory,
@@ -93,6 +110,7 @@ public final class ReportMerger {
         int totalSteps = sourceFiles.size() + 7;
         int completedSteps = 0;
 
+        // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 즉시 반응하도록 한다.
         listener.onProgress(0, "Preparing merge...");
         // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
         if (!Files.exists(templatePath)) {
@@ -156,6 +174,15 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 완료된 단계 수를 퍼센트로 환산해 진행 콜백에 전달한다.
+     *
+     * @param listener 진행 상태를 수신할 리스너
+     * @param completedSteps 현재까지 완료한 단계 수
+     * @param totalSteps 전체 단계 수
+     * @param message 사용자에게 보여 줄 현재 단계 설명
+     * @return 전달한 완료 단계 수
+     */
     private static int reportProgress(
             ProgressListener listener,
             int completedSteps,
@@ -181,6 +208,13 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 표와 표 안의 중첩 표까지 재귀적으로 순회하며 플레이스홀더를 치환한다.
+     *
+     * @param table 치환할 대상 표
+     * @param placeholder 찾을 문자열
+     * @param replacement 대체할 문자열
+     */
     private static void replacePlaceholderInTable(XWPFTable table, String placeholder, String replacement) {
         for (XWPFTableRow row : table.getRows()) {
             for (XWPFTableCell cell : row.getTableCells()) {
@@ -421,10 +455,17 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 템플릿의 인력 카테고리명을 정규화해 행 인덱스와 매핑한다.
+     *
+     * @param templateCategories 템플릿 표에서 읽은 카테고리명 목록
+     * @return 정규화된 카테고리명과 대상 행 번호 매핑
+     */
     private static Map<String, Integer> buildTemplateCategoryIndexes(List<String> templateCategories) {
         Map<String, Integer> indexes = new LinkedHashMap<>();
         for (int rowIndex = 0; rowIndex < templateCategories.size(); rowIndex++) {
             String normalizedCategory = normalizeText(templateCategories.get(rowIndex));
+            // 동일한 카테고리가 중복되면 첫 번째 위치를 기준으로 사용해 출력 구조를 안정적으로 유지한다.
             if (!normalizedCategory.isEmpty()) {
                 indexes.putIfAbsent(normalizedCategory, rowIndex);
             }
@@ -545,6 +586,12 @@ public final class ReportMerger {
         return elements;
     }
 
+    /**
+     * 문단이 "주요 이슈" 섹션 제목인지 판별한다.
+     *
+     * @param paragraph 검사할 문단
+     * @return 이슈 섹션 제목이면 true
+     */
     private static boolean isIssuesTitleParagraph(XWPFParagraph paragraph) {
         String normalizedText = normalizeText(cleanCellText(paragraph.getText()));
         List<String> normalizedTitles = ISSUES_SECTION.titles().stream()
@@ -553,6 +600,11 @@ public final class ReportMerger {
         return containsAny(normalizedText, normalizedTitles);
     }
 
+    /**
+     * 결과 문서 끝에 빈 줄 하나를 추가해 섹션 사이 간격을 만든다.
+     *
+     * @param document 빈 문단을 추가할 대상 문서
+     */
     private static void appendBlankParagraph(XWPFDocument document) {
         XmlCursor cursor = document.getDocument().getBody().newCursor();
         cursor.toEndToken();
@@ -561,6 +613,13 @@ public final class ReportMerger {
         paragraph.createRun().addBreak();
     }
 
+    /**
+     * 결과 문서 끝에 단순 텍스트 문단을 추가한다.
+     * 현재는 팀명을 구분 헤더처럼 보여 주는 용도로 사용한다.
+     *
+     * @param document 문단을 추가할 대상 문서
+     * @param text 추가할 텍스트
+     */
     private static void appendPlainParagraph(XWPFDocument document, String text) {
         XmlCursor cursor = document.getDocument().getBody().newCursor();
         cursor.toEndToken();
@@ -572,6 +631,12 @@ public final class ReportMerger {
         run.setText(text);
     }
 
+    /**
+     * 원본 문서의 문단 또는 표를 결과 문서 끝으로 복사한다.
+     *
+     * @param targetDocument 복사 대상을 붙여 넣을 결과 문서
+     * @param bodyElement 복사할 원본 본문 요소
+     */
     private static void appendBodyElement(XWPFDocument targetDocument, IBodyElement bodyElement) {
         XmlCursor cursor = targetDocument.getDocument().getBody().newCursor();
         cursor.toEndToken();
@@ -609,16 +674,31 @@ public final class ReportMerger {
         return fileName.trim();
     }
 
+    /**
+     * 문자열에 후보 텍스트 중 하나라도 포함되어 있는지 확인한다.
+     *
+     * @param text 검사할 원본 문자열
+     * @param candidates 포함 여부를 확인할 후보 문자열 목록
+     * @return 하나라도 포함되면 true
+     */
     private static boolean containsAny(String text, List<String> candidates) {
         return candidates.stream().anyMatch(text::contains);
     }
 
+    /**
+     * 행 전체가 영업 섹션의 고정 헤더 행인지 판별한다.
+     *
+     * @param row 비교할 행 값 목록
+     * @param normalizedFixedRowValues 정규화된 고정 헤더 문자열 목록
+     * @return 모든 고정 문자열을 포함하는 헤더 행이면 true
+     */
     private static boolean matchesFixedRow(List<String> row, List<String> normalizedFixedRowValues) {
         String normalizedJoinedRow = row.stream()
                 .map(ReportMerger::normalizeText)
                 .reduce("", String::concat);
 
         for (String fixedValue : normalizedFixedRowValues) {
+            // 헤더를 구성하는 값 중 하나라도 없으면 실제 데이터 행으로 간주한다.
             if (!normalizedJoinedRow.contains(fixedValue)) {
                 return false;
             }
@@ -656,6 +736,13 @@ public final class ReportMerger {
         return rows;
     }
 
+    /**
+     * 영업 현황 표에서 반복 삽입된 고정 헤더 행을 제거한다.
+     *
+     * @param rows 후보 영업 행 목록
+     * @param fixedRowValues 제거할 헤더 행의 기준 문자열
+     * @return 고정 헤더가 제거된 영업 행 목록
+     */
     private static List<SalesRowData> filterOutFixedSalesRows(List<SalesRowData> rows, List<String> fixedRowValues) {
         List<String> normalizedFixedRowValues = fixedRowValues.stream()
                 .map(ReportMerger::normalizeText)
@@ -671,6 +758,12 @@ public final class ReportMerger {
         return filteredRows;
     }
 
+    /**
+     * 영업 현황 데이터에서 템플릿이 보존할 첫 번째 열을 제거한 복사본을 만든다.
+     *
+     * @param rows 원본 영업 행 목록
+     * @return 첫 번째 열이 제거된 영업 행 목록
+     */
     private static List<SalesRowData> removeFirstSalesColumn(List<SalesRowData> rows) {
         List<SalesRowData> adjustedRows = new ArrayList<>();
         for (SalesRowData row : rows) {
@@ -691,6 +784,9 @@ public final class ReportMerger {
         return adjustedRows;
     }
 
+    /**
+     * 섹션 제목 후보, 기본 표 위치, 실제 데이터 시작 행을 묶어 두는 설정 레코드다.
+     */
     private record SectionSpec(List<String> titles, int tableIndex, int dataStartRowIndex) {
     }
 
@@ -716,6 +812,12 @@ public final class ReportMerger {
         return rows;
     }
 
+    /**
+     * 표 행의 모든 셀 텍스트를 정리된 문자열 목록으로 추출한다.
+     *
+     * @param row 추출할 대상 행
+     * @return 셀 값 목록
+     */
     private static List<String> extractCellValues(XWPFTableRow row) {
         List<String> cellValues = new ArrayList<>();
         for (XWPFTableCell cell : row.getTableCells()) {
@@ -864,6 +966,13 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 영업 행의 셀 내용과 서식을 대상 행의 지정 열부터 복사한다.
+     *
+     * @param targetRow 복사 결과를 기록할 행
+     * @param sourceRow 복사할 원본 영업 행
+     * @param startColumnIndex 붙여 넣기를 시작할 대상 열 인덱스
+     */
     private static void copySalesRow(XWPFTableRow targetRow, SalesRowData sourceRow, int startColumnIndex) {
         int targetColumnIndex = startColumnIndex;
         for (XWPFTableCell sourceCell : sourceRow.sourceCells()) {
@@ -925,6 +1034,13 @@ public final class ReportMerger {
         return newRow;
     }
 
+    /**
+     * 요청한 열 인덱스의 셀을 반환하고, 부족하면 새 셀을 추가해 맞춘다.
+     *
+     * @param row 셀을 가져올 대상 행
+     * @param cellIndex 필요한 셀 인덱스
+     * @return 지정 위치의 셀
+     */
     private static XWPFTableCell getOrCreateCell(XWPFTableRow row, int cellIndex) {
         while (row.getTableCells().size() <= cellIndex) {
             row.addNewTableCell();
@@ -932,6 +1048,12 @@ public final class ReportMerger {
         return row.getCell(cellIndex);
     }
 
+    /**
+     * 템플릿 행의 높이와 행 속성을 대상 행에 복사한다.
+     *
+     * @param templateRow 서식 기준이 되는 템플릿 행
+     * @param targetRow 서식을 적용할 대상 행
+     */
     private static void copyRowStyle(XWPFTableRow templateRow, XWPFTableRow targetRow) {
         if (templateRow == null || targetRow == null) {
             return;
@@ -948,6 +1070,12 @@ public final class ReportMerger {
         targetRow.setHeight(templateRow.getHeight());
     }
 
+    /**
+     * 템플릿 셀의 테두리, 정렬 등 셀/문단 속성을 대상 셀에 복사한다.
+     *
+     * @param templateCell 서식 기준이 되는 셀
+     * @param targetCell 서식을 적용할 대상 셀
+     */
     private static void copyCellStyle(XWPFTableCell templateCell, XWPFTableCell targetCell) {
         if (templateCell == null || targetCell == null) {
             return;
@@ -975,12 +1103,24 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 행 안의 모든 셀 텍스트를 제거한다.
+     *
+     * @param row 비울 대상 행
+     */
     private static void clearRow(XWPFTableRow row) {
         for (XWPFTableCell cell : row.getTableCells()) {
             clearCellText(cell);
         }
     }
 
+    /**
+     * 행의 각 셀에 문자열 값을 순서대로 기록한다.
+     * 필요한 경우 부족한 셀을 자동으로 생성한다.
+     *
+     * @param row 값을 기록할 대상 행
+     * @param values 기록할 셀 값 목록
+     */
     private static void setRowValues(XWPFTableRow row, List<String> values) {
         int limit = Math.max(row.getTableCells().size(), values.size());
         for (int cellIndex = 0; cellIndex < limit; cellIndex++) {
@@ -990,6 +1130,11 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 셀 안의 run과 추가 문단을 제거해 빈 셀 상태로 만든다.
+     *
+     * @param cell 비울 대상 셀
+     */
     private static void clearCellText(XWPFTableCell cell) {
         for (int paragraphIndex = cell.getParagraphs().size() - 1; paragraphIndex >= 0; paragraphIndex--) {
             XWPFParagraph paragraph = cell.getParagraphs().get(paragraphIndex);
@@ -1040,10 +1185,22 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 셀 텍스트 비교와 출력에 쓰기 좋도록 개행/공백을 정리한다.
+     *
+     * @param value 정리할 원본 문자열
+     * @return 앞뒤 공백과 carriage return이 제거된 문자열
+     */
     private static String cleanCellText(String value) {
         return value == null ? "" : value.replace("\r", "").trim();
     }
 
+    /**
+     * 행의 모든 셀이 비어 있는지 확인한다.
+     *
+     * @param row 검사할 행 값 목록
+     * @return 비어 있지 않은 값이 하나도 없으면 true
+     */
     private static boolean isEmptyRow(List<String> row) {
         for (String value : row) {
             if (!value.isBlank()) {
@@ -1053,6 +1210,12 @@ public final class ReportMerger {
         return true;
     }
 
+    /**
+     * 공백 차이를 무시하고 비교할 수 있도록 문자열을 정규화한다.
+     *
+     * @param value 정규화할 원본 문자열
+     * @return 모든 공백이 제거된 문자열
+     */
     private static String normalizeText(String value) {
         return value == null ? "" : value.replaceAll("\\s+", "");
     }
@@ -1085,6 +1248,12 @@ public final class ReportMerger {
         CellAccumulator() {
         }
 
+        /**
+         * 셀 값을 누적한다.
+         * 숫자만 들어오면 합계를 계산하고, 문자가 섞이면 줄바꿈 연결 방식으로 전환한다.
+         *
+         * @param value 누적할 셀 문자열
+         */
         void add(String value) {
             String cleanedValue = cleanCellText(value);
             if (cleanedValue.isEmpty()) {
@@ -1105,6 +1274,11 @@ public final class ReportMerger {
             numericSum = numericSum.add(parsedNumber);
         }
 
+        /**
+         * 누적된 값을 최종 병합 문자열로 반환한다.
+         *
+         * @return 숫자 합계 또는 줄바꿈으로 연결된 문자열
+         */
         String getMergedValue() {
             if (!hasValue) {
                 return "";
