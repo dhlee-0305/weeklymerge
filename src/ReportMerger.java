@@ -444,15 +444,25 @@ public final class ReportMerger {
                         continue;
                     }
 
+                    String cellValue = row.get(colIndex);
+                    // 2열~4열(인덱스 1~3)은 숫자만 집계 대상이므로 비숫자 값은 건너뛴다.
+                    if (colIndex >= 1 && colIndex <= 3
+                            && parseNumber(cleanCellText(cellValue)) == null) {
+                        continue;
+                    }
+
                     rowAccumulator
                             .computeIfAbsent(colIndex, key -> new CellAccumulator())
-                            .add(row.get(colIndex));
+                            .add(cellValue);
                 }
             }
         }
 
         List<List<String>> mergedRows = new ArrayList<>();
-        for (Map<Integer, CellAccumulator> rowAccumulator : accumulators.values()) {
+        List<Integer> accumulatorKeys = new ArrayList<>();
+        for (Map.Entry<Integer, Map<Integer, CellAccumulator>> entry : accumulators.entrySet()) {
+            accumulatorKeys.add(entry.getKey());
+            Map<Integer, CellAccumulator> rowAccumulator = entry.getValue();
             int maxColumnIndex = rowAccumulator.keySet().stream().mapToInt(Integer::intValue).max().orElse(-1);
             List<String> mergedRow = new ArrayList<>();
             for (int colIndex = 0; colIndex <= maxColumnIndex; colIndex++) {
@@ -461,6 +471,8 @@ public final class ReportMerger {
             }
             mergedRows.add(mergedRow);
         }
+
+        applyStaffSumCalculations(mergedRows, accumulatorKeys, templateCategories);
 
         // 최종 출력 시 카테고리 열은 템플릿 기준 값을 유지해 표 구조를 안정적으로 맞춘다.
         rewriteStaffTableRows(targetTable, mergedRows, templateCategories);
@@ -504,6 +516,83 @@ public final class ReportMerger {
 
             appendedAnyContent = true;
         }
+    }
+
+    /**
+     * 병합된 인력 현황 행에 합계 로직을 적용한다.
+     * 데이터 행의 4열은 2열 + 3열로 계산하고, "합계" 행은 각 열의 데이터 합으로 재산정한다.
+     *
+     * @param mergedRows 병합된 행 목록 (인덱스 0: 카테고리 자리, 1: 2열, 2: 3열, 3: 4열)
+     * @param accumulatorKeys mergedRows 각 행에 대응하는 templateCategories 인덱스
+     * @param templateCategories 템플릿 카테고리 목록
+     */
+    private static void applyStaffSumCalculations(
+            List<List<String>> mergedRows,
+            List<Integer> accumulatorKeys,
+            List<String> templateCategories) {
+        int sumRowInMergedRows = -1;
+        for (int i = 0; i < accumulatorKeys.size(); i++) {
+            int templateIndex = accumulatorKeys.get(i);
+            if (templateIndex < templateCategories.size()
+                    && isSumCategory(templateCategories.get(templateIndex))) {
+                sumRowInMergedRows = i;
+                break;
+            }
+        }
+
+        // 데이터 행: 4열(인덱스 3) = 2열(인덱스 1) + 3열(인덱스 2) 계산값으로 대체
+        for (int i = 0; i < mergedRows.size(); i++) {
+            if (i == sumRowInMergedRows) {
+                continue;
+            }
+            List<String> row = mergedRows.get(i);
+            BigDecimal col2 = safeParseNumber(row.size() > 1 ? row.get(1) : "");
+            BigDecimal col3 = safeParseNumber(row.size() > 2 ? row.get(2) : "");
+            String col4Value = formatStaffValue(col2.add(col3));
+            if (row.size() > 3) {
+                row.set(3, col4Value);
+            } else {
+                while (row.size() < 3) {
+                    row.add("");
+                }
+                row.add(col4Value);
+            }
+        }
+
+        // 합계 행: 2열과 3열은 데이터 행 합산, 4열은 두 합계의 합으로 재산정
+        if (sumRowInMergedRows >= 0) {
+            BigDecimal sumCol2 = BigDecimal.ZERO;
+            BigDecimal sumCol3 = BigDecimal.ZERO;
+            for (int i = 0; i < mergedRows.size(); i++) {
+                if (i == sumRowInMergedRows) {
+                    continue;
+                }
+                List<String> row = mergedRows.get(i);
+                sumCol2 = sumCol2.add(safeParseNumber(row.size() > 1 ? row.get(1) : ""));
+                sumCol3 = sumCol3.add(safeParseNumber(row.size() > 2 ? row.get(2) : ""));
+            }
+            List<String> sumRow = mergedRows.get(sumRowInMergedRows);
+            while (sumRow.size() <= 3) {
+                sumRow.add("");
+            }
+            sumRow.set(1, formatStaffValue(sumCol2));
+            sumRow.set(2, formatStaffValue(sumCol3));
+            sumRow.set(3, formatStaffValue(sumCol2.add(sumCol3)));
+        }
+    }
+
+    private static boolean isSumCategory(String category) {
+        return "합계".equals(normalizeText(category));
+    }
+
+    // '-' 값은 숫자로 파싱되지 않아 0으로 처리되며, 합계가 0이면 공백을 반환한다.
+    private static String formatStaffValue(BigDecimal value) {
+        return value.compareTo(BigDecimal.ZERO) == 0 ? "" : NUMBER_FORMAT.format(value);
+    }
+
+    private static BigDecimal safeParseNumber(String value) {
+        BigDecimal result = parseNumber(value);
+        return result != null ? result : BigDecimal.ZERO;
     }
 
     /**
