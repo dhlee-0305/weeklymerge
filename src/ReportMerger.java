@@ -37,8 +37,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
  * 템플릿 문서를 기준으로 섹션별 데이터를 합치고, 필요한 서식은 최대한 유지한다.
  */
 /**
- * Utility class that merges multiple weekly report Word documents into one output document.
- * It uses a template as the base document and preserves section structure and styling where possible.
+ * 여러 개의 주간 보고 Word 문서를 하나의 결과 문서로 병합하는 유틸리티 클래스다.
+ * 템플릿 문서를 기준으로 병합을 수행하며, 가능한 범위에서 섹션 구조와 서식을 유지한다.
  */
 public final class ReportMerger {
     // 템플릿 문서에서 실제 보고 일자로 치환할 플레이스홀더다.
@@ -80,16 +80,16 @@ public final class ReportMerger {
      * percent는 0~100 범위의 진행률, message는 현재 단계 설명으로 사용된다.
      */
     /**
-     * Callback used to publish merge progress to the UI.
-     * {@code percent} is expected in the range 0..100 and {@code message} describes the current step.
+     * 병합 진행 상태를 UI에 전달하기 위한 콜백 인터페이스다.
+     * {@code percent}는 0~100 범위의 진행률이고, {@code message}는 현재 단계 설명이다.
      */
     @FunctionalInterface
     public interface ProgressListener {
         /**
-         * Receives the latest merge progress update.
+         * 최신 병합 진행 상태를 전달받는다.
          *
-         * @param percent merge progress percentage
-         * @param message description of the current merge step
+         * @param percent 병합 진행 퍼센트
+         * @param message 현재 병합 단계 설명
          */
         void onProgress(int percent, String message);
     }
@@ -103,12 +103,12 @@ public final class ReportMerger {
      * @throws IOException 템플릿이 없거나 문서 입출력에 실패한 경우
      */
     /**
-     * Merges source reports into a new output document without reporting progress externally.
+     * 외부 진행률 보고 없이 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
-     * @param sourceFiles source report documents to merge
-     * @param outputDirectory folder that contains the template and receives the output file
-     * @return generated output document path
-     * @throws IOException if the template or source documents cannot be processed
+     * @param sourceFiles 병합할 원본 보고서 문서 목록
+     * @param outputDirectory 템플릿이 있고 결과 파일이 저장될 폴더
+     * @return 생성된 결과 문서 경로
+     * @throws IOException 템플릿 또는 원본 문서를 처리할 수 없는 경우
      */
     public static Path mergeReports(List<Path> sourceFiles, Path outputDirectory) throws IOException {
         return mergeReports(sourceFiles, outputDirectory, NO_OP_PROGRESS_LISTENER);
@@ -124,13 +124,13 @@ public final class ReportMerger {
      * @throws IOException 템플릿 또는 원본 문서를 읽거나 쓰는 중 오류가 발생한 경우
      */
     /**
-     * Merges source reports into a new output document while reporting progress updates.
+     * 진행률을 보고하면서 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
-     * @param sourceFiles source report documents to merge
-     * @param outputDirectory folder that contains the template and receives the output file
-     * @param progressListener progress callback, ignored when {@code null}
-     * @return generated output document path
-     * @throws IOException if the template or source documents cannot be processed
+     * @param sourceFiles 병합할 원본 보고서 문서 목록
+     * @param outputDirectory 템플릿이 있고 결과 파일이 저장될 폴더
+     * @param progressListener 진행률 콜백, {@code null}이면 무시한다
+     * @return 생성된 결과 문서 경로
+     * @throws IOException 템플릿 또는 원본 문서를 처리할 수 없는 경우
      */
     public static Path mergeReports(
             List<Path> sourceFiles,
@@ -142,7 +142,7 @@ public final class ReportMerger {
         int completedSteps = 0;
 
         // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 즉시 반응하도록 한다.
-        // Emit an initial 0% update so the UI can react immediately when the merge starts.
+        // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 바로 반응하도록 한다.
         listener.onProgress(0, "Preparing merge...");
         // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
         if (!Files.exists(templatePath)) {
@@ -167,7 +167,7 @@ public final class ReportMerger {
                 }
 
                 // 결과 문서는 템플릿 섹션 순서를 유지하면서 각 섹션별 병합을 수행한다.
-                // Merge the template sections in output order so the final report keeps the expected layout.
+                // 템플릿 섹션 순서대로 병합해 최종 보고서 레이아웃이 기대한 형태를 유지하도록 한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged project status section.");
                 mergeStaffSection(targetDocument, sourceDocuments);
@@ -178,7 +178,7 @@ public final class ReportMerger {
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Appended issues section.");
 
                 // 출력 파일명은 실행일 기준 yyyyMMdd 형식 접두사와 고정 suffix로 구성된다.
-                // Name the output file using the current date prefix plus the fixed report suffix.
+                // 현재 날짜 접두어와 고정 suffix를 조합해 결과 파일명을 만든다.
                 Path outputFile = outputDirectory.resolve(
                         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + OUTPUT_FILE_SUFFIX);
                 try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
@@ -188,7 +188,7 @@ public final class ReportMerger {
                 return outputFile;
             } finally {
                 // 원본 문서를 모두 닫아 파일 잠금과 리소스 누수를 방지한다.
-                // Always close every opened source document to avoid file locks and leaked resources.
+                // 파일 잠금과 리소스 누수를 막기 위해 연 원본 문서는 모두 닫는다.
                 for (SourceDocument sourceDocument : sourceDocuments) {
                     sourceDocument.document().close();
                 }
@@ -204,11 +204,11 @@ public final class ReportMerger {
      * @throws IOException 파일을 읽지 못한 경우
      */
     /**
-     * Opens a Word document from disk and loads it into memory.
+     * 디스크에서 Word 문서를 열어 메모리에 로드한다.
      *
-     * @param sourceFile source document path
-     * @return loaded Word document
-     * @throws IOException if the file cannot be opened
+     * @param sourceFile 원본 문서 경로
+     * @return 로드된 Word 문서
+     * @throws IOException 파일을 열 수 없는 경우
      */
     private static XWPFDocument openDocument(Path sourceFile) throws IOException {
         try (InputStream inputStream = Files.newInputStream(sourceFile)) {
@@ -226,13 +226,13 @@ public final class ReportMerger {
      * @return 전달한 완료 단계 수
      */
     /**
-     * Converts completed steps into a percentage and notifies the progress listener.
+     * 완료된 단계 수를 퍼센트로 환산해 진행률 리스너에 전달한다.
      *
-     * @param listener progress listener
-     * @param completedSteps number of completed merge steps
-     * @param totalSteps total number of merge steps
-     * @param message description of the current step
-     * @return completed step count
+     * @param listener 진행률 리스너
+     * @param completedSteps 현재까지 완료한 병합 단계 수
+     * @param totalSteps 전체 병합 단계 수
+     * @param message 현재 단계 설명
+     * @return 완료 단계 수
      */
     private static int reportProgress(
             ProgressListener listener,
@@ -1268,10 +1268,10 @@ public final class ReportMerger {
      * @return 모든 공백이 제거된 문자열
      */
     /**
-     * Removes all whitespace so strings can be compared without layout differences.
+     * 레이아웃 차이를 무시하고 비교할 수 있도록 모든 공백을 제거한다.
      *
-     * @param value source text to normalize
-     * @return text with all whitespace removed
+     * @param value 정규화할 원본 문자열
+     * @return 모든 공백이 제거된 문자열
      */
     private static String normalizeText(String value) {
         return value == null ? "" : value.replaceAll("\\s+", "");
@@ -1284,14 +1284,14 @@ public final class ReportMerger {
      * @return 숫자면 BigDecimal, 아니면 null
      */
     /**
-     * Parses a numeric string into {@link BigDecimal}.
+     * 숫자 문자열을 {@link BigDecimal}로 변환한다.
      *
-     * @param value text to parse
-     * @return parsed number, or {@code null} when the value is not numeric
+     * @param value 변환할 문자열
+     * @return 변환된 숫자, 숫자가 아니면 {@code null}
      */
     private static BigDecimal parseNumber(String value) {
         String normalized = value.replace(",", "").trim();
-        // Non-numeric values are handled as text during merge, so they return null here.
+        // 숫자가 아닌 값은 병합 시 텍스트로 처리되므로 여기서는 null을 반환한다.
         // 숫자가 아니면 합산 대신 문자열 병합 대상으로 처리하기 위해 null을 반환한다.
         if (!NUMERIC_PATTERN.matcher(normalized).matches()) {
             return null;
@@ -1319,10 +1319,10 @@ public final class ReportMerger {
          * @param value 누적할 셀 문자열
          */
         /**
-         * Accumulates a cell value.
-         * Numeric-only values are summed, while mixed text values are preserved line by line.
+         * 셀 값을 누적한다.
+         * 숫자만 들어오면 합계를 계산하고, 문자가 섞이면 줄 단위 텍스트를 유지한다.
          *
-         * @param value cell text to accumulate
+         * @param value 누적할 셀 텍스트
          */
         void add(String value) {
             String cleanedValue = cleanCellText(value);
@@ -1350,9 +1350,9 @@ public final class ReportMerger {
          * @return 숫자 합계 또는 줄바꿈으로 연결된 문자열
          */
         /**
-         * Builds the final merged value from the accumulated inputs.
+         * 누적된 입력값으로 최종 병합 결과 문자열을 만든다.
          *
-         * @return numeric sum or newline-joined text
+         * @return 숫자 합계 또는 줄바꿈으로 연결한 텍스트
          */
         String getMergedValue() {
             if (!hasValue) {

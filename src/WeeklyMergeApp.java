@@ -26,13 +26,13 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 public class WeeklyMergeApp extends JFrame {
-    // Falls back to the current working directory when the configured source path is missing or invalid.
+    // 설정된 원본 경로가 없거나 유효하지 않으면 현재 작업 폴더를 기본 경로로 사용한다.
     private static final String CONFIG_FILE_NAME = "app.properties";
     private static final String REPORT_DOC_PATH_KEY = "report.doc.path";
     private static final String REPORT_DOC_OUT_PATH_KEY = "report.doc.out.path";
     private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.dir"));
     private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY, DEFAULT_REPORT_DOC_PATH);
-    // Writes merged reports to the default `output` folder under the current working directory.
+    // 병합 결과 문서는 기본적으로 현재 작업 폴더 아래의 `output` 폴더에 저장한다.
     private static final Path DEFAULT_REPORT_DOC_OUT_PATH = Paths.get(System.getProperty("user.dir"), "output");
     private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(
             REPORT_DOC_OUT_PATH_KEY,
@@ -44,8 +44,8 @@ public class WeeklyMergeApp extends JFrame {
     private final JButton mergeReportsButton = new JButton("Merge Reports");
 
     /**
-     * Creates the main application window and initializes the UI and source file list.
-     * The user can review mergeable report files as soon as the window is shown.
+     * 메인 애플리케이션 창을 생성하고 UI와 원본 파일 목록을 초기화한다.
+     * 창이 표시되면 사용자는 바로 병합 가능한 보고서 목록을 확인할 수 있다.
      */
     public WeeklyMergeApp() {
         super("Weekly Report Merge");
@@ -54,65 +54,65 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Reads an absolute path from the config file and falls back to a default path when needed.
+     * 설정 파일에서 절대 경로를 읽고, 사용할 수 없으면 기본 경로를 반환한다.
      *
-     * @param key config key to read
-     * @param defaultPath path to use when the config value is missing or invalid
-     * @return normalized absolute path or the default path
+     * @param key 읽어 올 설정 키
+     * @param defaultPath 설정값이 없거나 잘못된 경우 사용할 기본 경로
+     * @return 정규화된 절대 경로 또는 기본 경로
      */
     private static Path loadConfiguredAbsolutePath(String key, Path defaultPath) {
         Path configPath = Paths.get(CONFIG_FILE_NAME);
-        // Missing config should not block the app, so the default path is used as-is.
+        // 설정 파일이 없어도 앱은 동작해야 하므로 기본 경로를 그대로 사용한다.
         if (!Files.exists(configPath)) {
             return defaultPath;
         }
 
         try {
             String configuredPath = readConfigValue(configPath, key);
-            // An empty config value is treated as "not configured" and falls back to the default path.
+            // 값이 비어 있으면 경로가 지정되지 않은 것으로 보고 기본 경로로 되돌린다.
             if (configuredPath.isEmpty()) {
                 return defaultPath;
             }
 
             Path resolvedPath = Paths.get(configuredPath);
-            // Relative paths are rejected to keep behavior predictable across launch locations.
+            // 상대 경로는 실행 위치에 따라 해석이 달라질 수 있어 허용하지 않는다.
             if (!resolvedPath.isAbsolute()) {
                 return defaultPath;
             }
 
             return resolvedPath.normalize();
         } catch (IOException exception) {
-            // Config read failures should not stop the app from working, so the default path is returned.
+            // 설정 파일을 읽지 못해도 앱 기능은 계속 사용할 수 있어야 하므로 기본 경로를 반환한다.
             return defaultPath;
         }
     }
 
     /**
-     * Finds the value for a key in a simple {@code key=value} config file.
+     * 단순한 {@code key=value} 형식의 설정 파일에서 특정 키의 값을 찾는다.
      *
-     * @param configPath config file path
-     * @param key config key to read
-     * @return matching value, or an empty string when the key is absent
-     * @throws IOException if the config file cannot be read
+     * @param configPath 설정 파일 경로
+     * @param key 읽어 올 설정 키
+     * @return 일치하는 값, 없으면 빈 문자열
+     * @throws IOException 설정 파일을 읽을 수 없는 경우
      */
     private static String readConfigValue(Path configPath, String key) throws IOException {
         List<String> lines = Files.readAllLines(configPath);
 
         for (String line : lines) {
             String trimmedLine = line.trim();
-            // Blank lines and comments are skipped because they are not real config entries.
+            // 빈 줄과 주석 줄은 실제 설정 항목이 아니므로 건너뛴다.
             if (trimmedLine.isEmpty() || trimmedLine.startsWith("#") || trimmedLine.startsWith("!")) {
                 continue;
             }
 
             int separatorIndex = trimmedLine.indexOf('=');
-            // Lines without '=' do not match the expected config format.
+            // '=' 문자가 없으면 기대한 설정 형식이 아니므로 무시한다.
             if (separatorIndex < 0) {
                 continue;
             }
 
             String currentKey = trimmedLine.substring(0, separatorIndex).trim();
-            // Only the requested key is returned; all other entries are ignored.
+            // 요청한 키와 일치하는 항목만 반환하고 나머지는 계속 탐색한다.
             if (!key.equals(currentKey)) {
                 continue;
             }
@@ -124,7 +124,7 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Builds the main window layout, including the path labels, file list, and action buttons.
+     * 경로 표시, 파일 목록, 실행 버튼을 포함한 메인 창 레이아웃을 구성한다.
      */
     private void initializeUi() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -155,13 +155,13 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Loads mergeable {@code .docx} files from the source folder and shows them in the list.
-     * Template files and previously generated output files are excluded.
+     * 원본 폴더에서 병합 가능한 {@code .docx} 파일을 읽어 목록에 표시한다.
+     * 템플릿 파일과 이전에 생성된 결과 파일은 제외한다.
      */
     private void loadDocFiles() {
         listModel.clear();
 
-        // Without a source folder the user cannot pick files, so the method stops after showing a warning.
+        // 원본 폴더가 없으면 사용자가 파일을 선택할 수 없으므로 경고 후 종료한다.
         if (!Files.isDirectory(REPORT_DOC_PATH)) {
             JOptionPane.showMessageDialog(
                     this,
@@ -176,23 +176,23 @@ public class WeeklyMergeApp extends JFrame {
                     .filter(Files::isRegularFile)
                     .map(Path::getFileName)
                     .map(Path::toString)
-                    // Only Word documents are valid merge inputs.
+                    // 병합 입력 대상으로는 Word 문서만 허용한다.
                     .filter(name -> name.toLowerCase().endsWith(".docx"))
-                    // The template document is not a source report and must stay out of the selection list.
+                    // 템플릿 문서는 병합 대상 보고서가 아니므로 목록에서 제외한다.
                     .filter(name -> !name.equalsIgnoreCase(ReportMerger.TEMPLATE_FILE_NAME))
-                    // Generated output files are excluded to prevent accidental re-merge of previous results.
+                    // 이전 병합 결과가 다시 입력으로 선택되지 않도록 결과 파일은 제외한다.
                     .filter(name -> !name.matches("\\d{8}_.+\\.docx"))
                     .sorted(String.CASE_INSENSITIVE_ORDER)
                     .collect(Collectors.toList());
 
-            // When nothing can be merged, show a placeholder message and disable list selection.
+            // 병합 가능한 문서가 없으면 안내 문구만 보여 주고 목록 선택을 비활성화한다.
             if (docFiles.isEmpty()) {
                 listModel.addElement("No source .docx files found.");
                 fileList.setEnabled(false);
                 return;
             }
 
-            // Re-enable selection once valid files have been discovered.
+            // 유효한 문서를 찾은 경우 목록 선택을 다시 활성화한다.
             fileList.setEnabled(true);
             docFiles.forEach(listModel::addElement);
         } catch (Exception exception) {
@@ -205,12 +205,12 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Merges the selected report files in the background and shows a progress dialog.
-     * The same dialog is updated with the final success or failure result.
+     * 선택한 보고서 파일을 백그라운드에서 병합하고 진행 팝업을 표시한다.
+     * 같은 팝업 안에서 최종 성공 또는 실패 결과까지 이어서 보여 준다.
      */
     private void mergeSelectedFiles() {
         List<String> selectedFiles = fileList.getSelectedValuesList();
-        // A merge should not start without selected files.
+        // 선택된 파일이 없으면 병합을 시작하지 않는다.
         if (selectedFiles.isEmpty()) {
             JOptionPane.showMessageDialog(
                     this,
@@ -220,7 +220,7 @@ public class WeeklyMergeApp extends JFrame {
             return;
         }
 
-        // A merge should not start if there is no destination folder for the output document.
+        // 출력 폴더가 없으면 결과 파일을 저장할 수 없으므로 병합을 시작하지 않는다.
         if (!Files.isDirectory(REPORT_DOC_OUT_PATH)) {
             JOptionPane.showMessageDialog(
                     this,
@@ -234,17 +234,17 @@ public class WeeklyMergeApp extends JFrame {
                 .map(name -> REPORT_DOC_PATH.resolve(name))
                 .collect(Collectors.toList());
 
-        // Disable the main controls while a merge is in progress to prevent duplicate runs.
+        // 병합 중에는 중복 실행을 막기 위해 메인 화면 조작을 잠시 비활성화한다.
         setMergeControlsEnabled(false);
         MergeProgressDialog progressDialog = new MergeProgressDialog(this);
         progressDialog.updateProgress(0, "Preparing merge...");
 
-        // The merge runs off the EDT so the UI stays responsive.
+        // 병합은 EDT 밖에서 실행해 UI가 멈추지 않도록 한다.
         SwingWorker<Path, String> worker = new SwingWorker<>() {
             @Override
             protected Path doInBackground() throws Exception {
                 return ReportMerger.mergeReports(sourceFiles, REPORT_DOC_OUT_PATH, (percent, message) -> {
-                    // Progress percent and step messages are forwarded to the UI through SwingWorker hooks.
+                    // 진행률과 단계 메시지를 SwingWorker를 통해 UI 스레드로 전달한다.
                     setProgress(percent);
                     publish(message);
                 });
@@ -252,7 +252,7 @@ public class WeeklyMergeApp extends JFrame {
 
             @Override
             protected void process(List<String> chunks) {
-                // When several messages arrive together, the latest one best represents the current step.
+                // 여러 메시지가 한 번에 전달되면 가장 최근 메시지만 표시한다.
                 if (chunks.isEmpty()) {
                     return;
                 }
@@ -264,53 +264,53 @@ public class WeeklyMergeApp extends JFrame {
             @Override
             protected void done() {
                 try {
-                    // get() returns the final output file path from the background task.
+                    // get()은 백그라운드 작업의 최종 결과 파일 경로를 반환한다.
                     Path outputFile = get();
                     progressDialog.completeSuccessfully(outputFile);
                 } catch (Exception exception) {
-                    // Failure details are shown inside the same dialog for a consistent user flow.
+                    // 실패 사유도 같은 팝업 안에 보여 주어 사용자 흐름을 일관되게 유지한다.
                     progressDialog.completeWithError(buildErrorMessage(exception));
                 } finally {
-                    // Re-enable the main controls regardless of success or failure.
+                    // 성공 여부와 상관없이 메인 화면 조작은 다시 가능해야 한다.
                     setMergeControlsEnabled(true);
                 }
             }
         };
 
         worker.addPropertyChangeListener((PropertyChangeEvent event) -> {
-            // Only progress property updates should change the progress bar.
+            // 다양한 속성 변경 중 진행률 변경만 프로그래스 바로 반영한다.
             if (!"progress".equals(event.getPropertyName())) {
                 return;
             }
 
             Object value = event.getNewValue();
-            // The progress property is expected as an integer percentage.
+            // progress 값은 정수 퍼센트로 전달되므로 형을 확인한 뒤 사용한다.
             if (value instanceof Integer progressValue) {
                 progressDialog.updateProgress(progressValue, null);
             }
         });
 
-        // The modal dialog is shown after the worker starts so the user can track progress immediately.
+        // 작업 시작 직후 모달 팝업을 열어 사용자가 진행 상황을 바로 확인할 수 있게 한다.
         worker.execute();
         progressDialog.setVisible(true);
     }
 
     /**
-     * Enables or disables the main window controls used during merge operations.
+     * 병합 작업 중 사용하는 메인 창 컨트롤의 활성화 여부를 설정한다.
      *
-     * @param enabled {@code true} to enable controls, {@code false} to disable them
+     * @param enabled {@code true}면 활성화, {@code false}면 비활성화
      */
     private void setMergeControlsEnabled(boolean enabled) {
         refreshButton.setEnabled(enabled);
         mergeReportsButton.setEnabled(enabled);
-        // The list is enabled only when the screen is enabled and there are real selectable file entries.
+        // 목록은 화면이 활성 상태이고 실제 선택 가능한 항목이 있을 때만 켠다.
         fileList.setEnabled(
                 enabled && !listModel.isEmpty() && !"No source .docx files found.".equals(listModel.get(0)));
     }
 
     /**
-     * Modal dialog that shows merge progress and the final merge result.
-     * It stays non-closable during work and becomes dismissible after completion.
+     * 병합 진행 상태와 최종 결과를 보여 주는 모달 대화상자다.
+     * 작업 중에는 닫을 수 없고, 완료 후에는 닫을 수 있다.
      */
     private static final class MergeProgressDialog extends JDialog {
         private final JLabel statusLabel = new JLabel("Preparing merge...");
@@ -319,9 +319,9 @@ public class WeeklyMergeApp extends JFrame {
         private final JButton closeButton = new JButton("Close");
 
         /**
-         * Builds the default UI for the progress dialog.
+         * 진행 팝업의 기본 UI를 구성한다.
          *
-         * @param owner parent frame for the dialog
+         * @param owner 부모 프레임
          */
         MergeProgressDialog(JFrame owner) {
             super(owner, "Merging Reports", true);
@@ -337,7 +337,7 @@ public class WeeklyMergeApp extends JFrame {
             closeButton.addActionListener(event -> dispose());
 
             JPanel contentPanel = new JPanel(new GridLayout(0, 1, 0, 8));
-            // Wrapping the progress bar prevents GridLayout from stretching it to the full dialog width.
+            // 별도 패널로 감싸 GridLayout이 프로그래스 바를 전체 너비로 늘리지 않게 한다.
             JPanel progressPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
             progressPanel.add(progressBar);
             contentPanel.add(statusLabel);
@@ -357,24 +357,24 @@ public class WeeklyMergeApp extends JFrame {
         }
 
         /**
-         * Updates the progress bar and, optionally, the detail message.
+         * 진행 바 값과 상세 메시지를 갱신한다.
          *
-         * @param percent progress percentage in the range 0..100
-         * @param message detail message to show, or {@code null} to keep the current text
+         * @param percent 0~100 범위의 진행률
+         * @param message 표시할 상세 메시지, {@code null}이면 기존 메시지를 유지한다
          */
         void updateProgress(int percent, String message) {
             progressBar.setValue(percent);
             progressBar.setString(percent + "%");
-            // The detail label is updated only when a real message is provided.
+            // 실제 메시지가 전달된 경우에만 상세 라벨을 갱신한다.
             if (message != null && !message.isBlank()) {
                 detailLabel.setText(message);
             }
         }
 
         /**
-         * Updates only the detail message.
+         * 상세 메시지만 갱신한다.
          *
-         * @param message text to show in the detail area
+         * @param message 상세 영역에 표시할 텍스트
          */
         void updateMessage(String message) {
             if (message != null && !message.isBlank()) {
@@ -383,9 +383,9 @@ public class WeeklyMergeApp extends JFrame {
         }
 
         /**
-         * Switches the dialog to the success state and shows the output file path.
+         * 팝업을 성공 상태로 전환하고 결과 파일 경로를 보여 준다.
          *
-         * @param outputFile generated merged document
+         * @param outputFile 생성된 병합 결과 문서
          */
         void completeSuccessfully(Path outputFile) {
             statusLabel.setText("Merge complete.");
@@ -396,9 +396,9 @@ public class WeeklyMergeApp extends JFrame {
         }
 
         /**
-         * Switches the dialog to the failure state and shows the error message.
+         * 팝업을 실패 상태로 전환하고 오류 메시지를 보여 준다.
          *
-         * @param errorMessage user-facing error description
+         * @param errorMessage 사용자에게 보여 줄 오류 설명
          */
         void completeWithError(String errorMessage) {
             statusLabel.setText("Merge failed.");
@@ -408,7 +408,7 @@ public class WeeklyMergeApp extends JFrame {
         }
 
         /**
-         * Makes the dialog closable after the merge result has been shown.
+         * 병합 결과를 보여 준 뒤 팝업을 닫을 수 있는 상태로 전환한다.
          */
         private void finish() {
             closeButton.setEnabled(true);
@@ -416,10 +416,10 @@ public class WeeklyMergeApp extends JFrame {
         }
 
         /**
-         * Escapes special characters so error messages can be displayed safely inside HTML labels.
+         * 오류 메시지를 HTML 라벨에 안전하게 표시할 수 있도록 특수 문자를 이스케이프한다.
          *
-         * @param text raw input text
-         * @return HTML-safe text
+         * @param text 원본 텍스트
+         * @return HTML에 안전한 문자열
          */
         private static String escapeHtml(String text) {
             if (text == null) {
@@ -434,29 +434,29 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Extracts a user-facing error message from an exception chain.
+     * 예외 체인에서 사용자에게 보여 줄 수 있는 오류 메시지를 추출한다.
      *
-     * @param throwable exception to inspect
-     * @return readable error message for the user
+     * @param throwable 분석할 예외 객체
+     * @return 사용자가 이해할 수 있는 오류 메시지
      */
     private static String buildErrorMessage(Throwable throwable) {
         if (throwable == null) {
             return "Unknown error";
         }
 
-        // SwingWorker#get may wrap the original cause, so the inner exception is preferred.
+        // SwingWorker#get은 원인 예외를 감쌀 수 있으므로 내부 예외를 우선 사용한다.
         if (throwable instanceof java.util.concurrent.ExecutionException && throwable.getCause() != null) {
             return buildErrorMessage(throwable.getCause());
         }
 
         String message = throwable.getMessage();
-        // A direct exception message is the simplest readable output for the user.
+        // 예외 자체에 메시지가 있으면 가장 간단하고 읽기 쉬운 설명으로 그대로 사용한다.
         if (message != null && !message.isBlank()) {
             return message;
         }
 
         Throwable cause = throwable.getCause();
-        // If the current exception has no message, walk the cause chain to find a better explanation.
+        // 현재 예외 메시지가 없으면 원인 예외를 따라가며 더 나은 설명을 찾는다.
         if (cause != null && cause != throwable) {
             String causeMessage = buildErrorMessage(cause);
             if (causeMessage != null && !causeMessage.isBlank()) {
@@ -468,13 +468,13 @@ public class WeeklyMergeApp extends JFrame {
     }
 
     /**
-     * Launches the main Swing window on the Event Dispatch Thread.
+     * Swing 이벤트 디스패치 스레드에서 메인 창을 실행한다.
      *
-     * @param args command-line arguments, currently unused
+     * @param args 실행 인자, 현재는 사용하지 않음
      */
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Swing components must be created on the EDT for safe rendering and event handling.
+            // Swing 컴포넌트는 EDT에서 생성해야 화면 갱신과 이벤트 처리가 안전하다.
             WeeklyMergeApp app = new WeeklyMergeApp();
             app.setVisible(true);
         });
