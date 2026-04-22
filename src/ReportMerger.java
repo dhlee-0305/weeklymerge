@@ -61,8 +61,15 @@ public final class ReportMerger {
             1);
     private static final Pattern NUMERIC_PATTERN = Pattern.compile("[-+]?\\d+(\\.\\d+)?");
     private static final DecimalFormat NUMBER_FORMAT = new DecimalFormat("0.################");
+    private static final ProgressListener NO_OP_PROGRESS_LISTENER = (percent, message) -> {
+    };
 
     private ReportMerger() {
+    }
+
+    @FunctionalInterface
+    public interface ProgressListener {
+        void onProgress(int percent, String message);
     }
 
     /**
@@ -74,7 +81,19 @@ public final class ReportMerger {
      * @throws IOException 템플릿이 없거나 문서 입출력에 실패한 경우
      */
     public static Path mergeReports(List<Path> sourceFiles, Path outputDirectory) throws IOException {
+        return mergeReports(sourceFiles, outputDirectory, NO_OP_PROGRESS_LISTENER);
+    }
+
+    public static Path mergeReports(
+            List<Path> sourceFiles,
+            Path outputDirectory,
+            ProgressListener progressListener) throws IOException {
         Path templatePath = outputDirectory.resolve(TEMPLATE_FILE_NAME);
+        ProgressListener listener = progressListener == null ? NO_OP_PROGRESS_LISTENER : progressListener;
+        int totalSteps = sourceFiles.size() + 7;
+        int completedSteps = 0;
+
+        listener.onProgress(0, "Preparing merge...");
         // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
         if (!Files.exists(templatePath)) {
             throw new IOException("Template file not found: " + templatePath.toAbsolutePath());
@@ -82,19 +101,30 @@ public final class ReportMerger {
 
         try (InputStream templateStream = Files.newInputStream(templatePath);
                 XWPFDocument targetDocument = new XWPFDocument(templateStream)) {
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Template loaded.");
             applyReportDate(targetDocument);
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Applied report date.");
 
             List<SourceDocument> sourceDocuments = new ArrayList<>();
             try {
                 for (Path sourceFile : sourceFiles) {
                     sourceDocuments.add(new SourceDocument(sourceFile, openDocument(sourceFile)));
+                    completedSteps = reportProgress(
+                            listener,
+                            completedSteps + 1,
+                            totalSteps,
+                            "Loaded source file: " + sourceFile.getFileName());
                 }
 
                 // 결과 문서는 템플릿 섹션 순서를 유지하면서 각 섹션별 병합을 수행한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged project status section.");
                 mergeStaffSection(targetDocument, sourceDocuments);
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged staff status section.");
                 mergeAppendSection(targetDocument, sourceDocuments, SALES_STATUS_SECTION);
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged sales status section.");
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Appended issues section.");
 
                 // 출력 파일명은 실행일 기준 yyyyMMdd 형식 접두사와 고정 suffix로 구성된다.
                 Path outputFile = outputDirectory.resolve(
@@ -102,6 +132,7 @@ public final class ReportMerger {
                 try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
                     targetDocument.write(outputStream);
                 }
+                reportProgress(listener, totalSteps, totalSteps, "Merge completed.");
                 return outputFile;
             } finally {
                 // 원본 문서를 모두 닫아 파일 잠금과 리소스 누수를 방지한다.
@@ -123,6 +154,16 @@ public final class ReportMerger {
         try (InputStream inputStream = Files.newInputStream(sourceFile)) {
             return new XWPFDocument(inputStream);
         }
+    }
+
+    private static int reportProgress(
+            ProgressListener listener,
+            int completedSteps,
+            int totalSteps,
+            String message) {
+        int percent = totalSteps <= 0 ? 100 : Math.min(100, (completedSteps * 100) / totalSteps);
+        listener.onProgress(percent, message);
+        return completedSteps;
     }
 
     /**
