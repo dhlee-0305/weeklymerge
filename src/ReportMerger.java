@@ -1051,6 +1051,7 @@ public final class ReportMerger {
             // 첫 열은 누적 결과가 아니라 분류 기준을 보여주는 열이므로 템플릿 값을 유지한다.
             setCellText(row.getCell(STAFF_CATEGORY_COLUMN_INDEX), templateCategories.get(rowOffset));
         }
+        applyStaffSummaryRowBoldStyle(table, templateCategories.size());
     }
 
     /**
@@ -1270,6 +1271,30 @@ public final class ReportMerger {
         }
     }
 
+    private static void applyStaffSummaryRowBoldStyle(XWPFTable table, int dataRowCount) {
+        if (table == null || dataRowCount <= 0) {
+            return;
+        }
+
+        int templateRowIndex = table.getNumberOfRows() > 1 ? 1 : 0;
+        int summaryRowIndex = templateRowIndex + dataRowCount - 1;
+        if (summaryRowIndex >= table.getNumberOfRows()) {
+            return;
+        }
+
+        XWPFTableRow summaryRow = table.getRow(summaryRowIndex);
+        if (summaryRow == null) {
+            return;
+        }
+
+        for (int cellIndex = 1; cellIndex <= 3; cellIndex++) {
+            if (cellIndex >= summaryRow.getTableCells().size()) {
+                break;
+            }
+            setCellBold(summaryRow.getCell(cellIndex), true);
+        }
+    }
+
     /**
      * 셀 안의 run과 추가 문단을 제거해 빈 셀 상태로 만든다.
      *
@@ -1331,6 +1356,23 @@ public final class ReportMerger {
      * @param value 정리할 원본 문자열
      * @return 앞뒤 공백과 carriage return이 제거된 문자열
      */
+    private static void setCellBold(XWPFTableCell cell, boolean bold) {
+        if (cell == null) {
+            return;
+        }
+
+        for (XWPFParagraph paragraph : cell.getParagraphs()) {
+            if (paragraph.getRuns().isEmpty()) {
+                paragraph.createRun().setBold(bold);
+                continue;
+            }
+
+            for (XWPFRun run : paragraph.getRuns()) {
+                run.setBold(bold);
+            }
+        }
+    }
+
     private static String cleanCellText(String value) {
         return value == null ? "" : value.replace("\r", "").trim();
     }

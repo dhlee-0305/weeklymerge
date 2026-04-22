@@ -40,7 +40,7 @@ public class WeeklyMergeApp extends JFrame {
 
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> fileList = new JList<>(listModel);
-    private final JButton refreshButton = new JButton("Refresh Files");
+    private final JButton refreshButton = new JButton("Refresh Folder");
     private final JButton mergeReportsButton = new JButton("Merge Reports");
 
     /**
