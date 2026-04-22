@@ -34,10 +34,6 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 
 /**
  * 여러 개의 주간 보고 Word 문서를 하나의 결과 문서로 병합하는 유틸리티 클래스다.
- * 템플릿 문서를 기준으로 섹션별 데이터를 합치고, 필요한 서식은 최대한 유지한다.
- */
-/**
- * 여러 개의 주간 보고 Word 문서를 하나의 결과 문서로 병합하는 유틸리티 클래스다.
  * 템플릿 문서를 기준으로 병합을 수행하며, 가능한 범위에서 섹션 구조와 서식을 유지한다.
  */
 public final class ReportMerger {
@@ -76,10 +72,6 @@ public final class ReportMerger {
     }
 
     /**
-     * 병합 진행 상태를 외부 UI에 전달하기 위한 콜백 인터페이스다.
-     * percent는 0~100 범위의 진행률, message는 현재 단계 설명으로 사용된다.
-     */
-    /**
      * 병합 진행 상태를 UI에 전달하기 위한 콜백 인터페이스다.
      * {@code percent}는 0~100 범위의 진행률이고, {@code message}는 현재 단계 설명이다.
      */
@@ -95,14 +87,6 @@ public final class ReportMerger {
     }
 
     /**
-     * 여러 개의 원본 보고서를 템플릿 문서에 병합해 최종 주간보고 파일을 생성한다.
-     *
-     * @param sourceFiles 병합 대상 원본 문서 목록
-     * @param outputDirectory 템플릿 파일이 위치하고 결과 파일을 저장할 디렉터리
-     * @return 생성된 결과 문서 경로
-     * @throws IOException 템플릿이 없거나 문서 입출력에 실패한 경우
-     */
-    /**
      * 외부 진행률 보고 없이 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
      * @param sourceFiles 병합할 원본 보고서 문서 목록
@@ -114,15 +98,6 @@ public final class ReportMerger {
         return mergeReports(sourceFiles, outputDirectory, NO_OP_PROGRESS_LISTENER);
     }
 
-    /**
-     * 병합 진행률을 외부에 보고하면서 결과 문서를 생성한다.
-     *
-     * @param sourceFiles 병합할 원본 보고서 목록
-     * @param outputDirectory 템플릿과 결과 파일이 위치할 출력 폴더
-     * @param progressListener 진행 상태를 전달받을 콜백, 없으면 무시된다
-     * @return 생성된 결과 문서 경로
-     * @throws IOException 템플릿 또는 원본 문서를 읽거나 쓰는 중 오류가 발생한 경우
-     */
     /**
      * 진행률을 보고하면서 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
@@ -141,7 +116,6 @@ public final class ReportMerger {
         int totalSteps = sourceFiles.size() + 7;
         int completedSteps = 0;
 
-        // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 즉시 반응하도록 한다.
         // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 바로 반응하도록 한다.
         listener.onProgress(0, "Preparing merge...");
         // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
@@ -166,7 +140,6 @@ public final class ReportMerger {
                             "Loaded source file: " + sourceFile.getFileName());
                 }
 
-                // 결과 문서는 템플릿 섹션 순서를 유지하면서 각 섹션별 병합을 수행한다.
                 // 템플릿 섹션 순서대로 병합해 최종 보고서 레이아웃이 기대한 형태를 유지하도록 한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged project status section.");
@@ -177,7 +150,6 @@ public final class ReportMerger {
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Appended issues section.");
 
-                // 출력 파일명은 실행일 기준 yyyyMMdd 형식 접두사와 고정 suffix로 구성된다.
                 // 현재 날짜 접두어와 고정 suffix를 조합해 결과 파일명을 만든다.
                 Path outputFile = outputDirectory.resolve(
                         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + OUTPUT_FILE_SUFFIX);
@@ -187,7 +159,6 @@ public final class ReportMerger {
                 reportProgress(listener, totalSteps, totalSteps, "Merge completed.");
                 return outputFile;
             } finally {
-                // 원본 문서를 모두 닫아 파일 잠금과 리소스 누수를 방지한다.
                 // 파일 잠금과 리소스 누수를 막기 위해 연 원본 문서는 모두 닫는다.
                 for (SourceDocument sourceDocument : sourceDocuments) {
                     sourceDocument.document().close();
@@ -196,13 +167,6 @@ public final class ReportMerger {
         }
     }
 
-    /**
-     * 파일 경로를 기준으로 Word 문서를 열어 POI 문서 객체로 변환한다.
-     *
-     * @param sourceFile 열 대상 파일 경로
-     * @return 메모리에 로드된 Word 문서
-     * @throws IOException 파일을 읽지 못한 경우
-     */
     /**
      * 디스크에서 Word 문서를 열어 메모리에 로드한다.
      *
@@ -216,15 +180,6 @@ public final class ReportMerger {
         }
     }
 
-    /**
-     * 완료된 단계 수를 퍼센트로 환산해 진행 콜백에 전달한다.
-     *
-     * @param listener 진행 상태를 수신할 리스너
-     * @param completedSteps 현재까지 완료한 단계 수
-     * @param totalSteps 전체 단계 수
-     * @param message 사용자에게 보여 줄 현재 단계 설명
-     * @return 전달한 완료 단계 수
-     */
     /**
      * 완료된 단계 수를 퍼센트로 환산해 진행률 리스너에 전달한다.
      *
@@ -1393,12 +1348,6 @@ public final class ReportMerger {
     }
 
     /**
-     * 공백 차이를 무시하고 비교할 수 있도록 문자열을 정규화한다.
-     *
-     * @param value 정규화할 원본 문자열
-     * @return 모든 공백이 제거된 문자열
-     */
-    /**
      * 레이아웃 차이를 무시하고 비교할 수 있도록 모든 공백을 제거한다.
      *
      * @param value 정규화할 원본 문자열
@@ -1409,12 +1358,6 @@ public final class ReportMerger {
     }
 
     /**
-     * 문자열이 숫자 형식이면 BigDecimal로 변환한다.
-     *
-     * @param value 변환할 문자열
-     * @return 숫자면 BigDecimal, 아니면 null
-     */
-    /**
      * 숫자 문자열을 {@link BigDecimal}로 변환한다.
      *
      * @param value 변환할 문자열
@@ -1422,7 +1365,6 @@ public final class ReportMerger {
      */
     private static BigDecimal parseNumber(String value) {
         String normalized = value.replace(",", "").trim();
-        // 숫자가 아닌 값은 병합 시 텍스트로 처리되므로 여기서는 null을 반환한다.
         // 숫자가 아니면 합산 대신 문자열 병합 대상으로 처리하기 위해 null을 반환한다.
         if (!NUMERIC_PATTERN.matcher(normalized).matches()) {
             return null;
@@ -1443,12 +1385,6 @@ public final class ReportMerger {
         CellAccumulator() {
         }
 
-        /**
-         * 셀 값을 누적한다.
-         * 숫자만 들어오면 합계를 계산하고, 문자가 섞이면 줄바꿈 연결 방식으로 전환한다.
-         *
-         * @param value 누적할 셀 문자열
-         */
         /**
          * 셀 값을 누적한다.
          * 숫자만 들어오면 합계를 계산하고, 문자가 섞이면 줄 단위 텍스트를 유지한다.
@@ -1475,11 +1411,6 @@ public final class ReportMerger {
             numericSum = numericSum.add(parsedNumber);
         }
 
-        /**
-         * 누적된 값을 최종 병합 문자열로 반환한다.
-         *
-         * @return 숫자 합계 또는 줄바꿈으로 연결된 문자열
-         */
         /**
          * 누적된 입력값으로 최종 병합 결과 문자열을 만든다.
          *
