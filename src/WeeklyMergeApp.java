@@ -34,7 +34,8 @@ public class WeeklyMergeApp extends JFrame {
     private static final String REPORT_DOC_PATH_KEY = "report.doc.path";
     private static final String REPORT_DOC_OUT_PATH_KEY = "report.doc.out.path";
     private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.dir"));
-    private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY, DEFAULT_REPORT_DOC_PATH);
+    private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY,
+            DEFAULT_REPORT_DOC_PATH);
     // 병합 결과 문서는 기본적으로 현재 작업 폴더 아래의 `output` 폴더에 저장한다.
     private static final Path DEFAULT_REPORT_DOC_OUT_PATH = Paths.get(System.getProperty("user.dir"), "output");
     private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(
@@ -60,7 +61,7 @@ public class WeeklyMergeApp extends JFrame {
     /**
      * 설정 파일에서 절대 경로를 읽고, 사용할 수 없으면 기본 경로를 반환한다.
      *
-     * @param key 읽어 올 설정 키
+     * @param key         읽어 올 설정 키
      * @param defaultPath 설정값이 없거나 잘못된 경우 사용할 기본 경로
      * @return 정규화된 절대 경로 또는 기본 경로
      */
@@ -95,7 +96,7 @@ public class WeeklyMergeApp extends JFrame {
      * 단순한 {@code key=value} 형식의 설정 파일에서 특정 키의 값을 찾는다.
      *
      * @param configPath 설정 파일 경로
-     * @param key 읽어 올 설정 키
+     * @param key        읽어 올 설정 키
      * @return 일치하는 값, 없으면 빈 문자열
      * @throws IOException 설정 파일을 읽을 수 없는 경우
      */
@@ -228,9 +229,8 @@ public class WeeklyMergeApp extends JFrame {
      * 같은 팝업 안에서 최종 성공 또는 실패 결과까지 이어서 보여 준다.
      */
     private void mergeSelectedFiles() {
-        List<String> selectedFiles = new ArrayList<>(selectionOrder);
         // 선택된 파일이 없으면 병합을 시작하지 않는다.
-        if (selectedFiles.isEmpty()) {
+        if (selectionOrder.isEmpty()) {
             JOptionPane.showMessageDialog(
                     this,
                     "Select one or more report files to merge.",
@@ -249,7 +249,7 @@ public class WeeklyMergeApp extends JFrame {
             return;
         }
 
-        List<Path> sourceFiles = selectedFiles.stream()
+        List<Path> sourceFiles = selectionOrder.stream()
                 .map(name -> REPORT_DOC_PATH.resolve(name))
                 .collect(Collectors.toList());
 
