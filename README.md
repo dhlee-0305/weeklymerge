@@ -105,7 +105,7 @@ java -jar weeklymerge.jar
 ### 3. 실행 후 동작 방식
 
 1. `report.doc.path` 폴더의 `.docx` 파일 목록을 화면에 표시합니다.
-2. 병합할 파일을 하나 이상 선택합니다.
+2. 병합할 파일을 하나 이상 선택합니다. 선택한 순서대로 파일이 병합됩니다.
 3. `Merge Reports` 버튼을 클릭합니다.
 4. 통합 문서가 `report.doc.out.path` 폴더에 생성됩니다.
 

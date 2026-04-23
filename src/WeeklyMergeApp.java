@@ -7,7 +7,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,6 +45,7 @@ public class WeeklyMergeApp extends JFrame {
     private final JList<String> fileList = new JList<>(listModel);
     private final JButton refreshButton = new JButton("Refresh Folder");
     private final JButton mergeReportsButton = new JButton("Merge Reports");
+    private final List<String> selectionOrder = new ArrayList<>();
 
     /**
      * 메인 애플리케이션 창을 생성하고 UI와 원본 파일 목록을 초기화한다.
@@ -135,6 +139,20 @@ public class WeeklyMergeApp extends JFrame {
         infoPanel.add(new JLabel("Output Path: " + REPORT_DOC_OUT_PATH.toAbsolutePath()));
 
         fileList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        fileList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) {
+                return;
+            }
+            List<String> currentSelection = fileList.getSelectedValuesList();
+            Set<String> currentSet = new HashSet<>(currentSelection);
+            selectionOrder.removeIf(item -> !currentSet.contains(item));
+            Set<String> alreadyTracked = new HashSet<>(selectionOrder);
+            for (String item : currentSelection) {
+                if (!alreadyTracked.contains(item)) {
+                    selectionOrder.add(item);
+                }
+            }
+        });
 
         JScrollPane scrollPane = new JScrollPane(fileList);
         scrollPane.setPreferredSize(new Dimension(720, 360));
@@ -160,6 +178,7 @@ public class WeeklyMergeApp extends JFrame {
      */
     private void loadDocFiles() {
         listModel.clear();
+        selectionOrder.clear();
 
         // 원본 폴더가 없으면 사용자가 파일을 선택할 수 없으므로 경고 후 종료한다.
         if (!Files.isDirectory(REPORT_DOC_PATH)) {
@@ -209,7 +228,7 @@ public class WeeklyMergeApp extends JFrame {
      * 같은 팝업 안에서 최종 성공 또는 실패 결과까지 이어서 보여 준다.
      */
     private void mergeSelectedFiles() {
-        List<String> selectedFiles = fileList.getSelectedValuesList();
+        List<String> selectedFiles = new ArrayList<>(selectionOrder);
         // 선택된 파일이 없으면 병합을 시작하지 않는다.
         if (selectedFiles.isEmpty()) {
             JOptionPane.showMessageDialog(
