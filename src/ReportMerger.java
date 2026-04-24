@@ -38,7 +38,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
  */
 public final class ReportMerger {
     // 템플릿 문서에서 실제 보고 일자로 치환할 플레이스홀더다.
-    private static final String REPORT_DATE_PLACEHOLDER = "[보고일]";
+    private static final String REPORT_DATE_PLACEHOLDER = "[취합일]";
     public static final String TEMPLATE_FILE_NAME = "경영전략회의_template_java.docx";
     private static final int STAFF_CATEGORY_COLUMN_INDEX = 0;
     private static final int SALES_EXCLUDED_COLUMN_INDEX = 0;
@@ -89,7 +89,7 @@ public final class ReportMerger {
     /**
      * 외부 진행률 보고 없이 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
-     * @param sourceFiles 병합할 원본 보고서 문서 목록
+     * @param sourceFiles     병합할 원본 보고서 문서 목록
      * @param outputDirectory 템플릿이 있고 결과 파일이 저장될 폴더
      * @return 생성된 결과 문서 경로
      * @throws IOException 템플릿 또는 원본 문서를 처리할 수 없는 경우
@@ -101,8 +101,8 @@ public final class ReportMerger {
     /**
      * 진행률을 보고하면서 원본 보고서를 병합해 새 결과 문서를 만든다.
      *
-     * @param sourceFiles 병합할 원본 보고서 문서 목록
-     * @param outputDirectory 템플릿이 있고 결과 파일이 저장될 폴더
+     * @param sourceFiles      병합할 원본 보고서 문서 목록
+     * @param outputDirectory  템플릿이 있고 결과 파일이 저장될 폴더
      * @param progressListener 진행률 콜백, {@code null}이면 무시한다
      * @return 생성된 결과 문서 경로
      * @throws IOException 템플릿 또는 원본 문서를 처리할 수 없는 경우
@@ -142,11 +142,14 @@ public final class ReportMerger {
 
                 // 템플릿 섹션 순서대로 병합해 최종 보고서 레이아웃이 기대한 형태를 유지하도록 한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
-                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged project status section.");
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                        "Merged project status section.");
                 mergeStaffSection(targetDocument, sourceDocuments);
-                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged staff status section.");
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                        "Merged staff status section.");
                 mergeAppendSection(targetDocument, sourceDocuments, SALES_STATUS_SECTION);
-                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Merged sales status section.");
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                        "Merged sales status section.");
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Appended issues section.");
 
@@ -183,10 +186,10 @@ public final class ReportMerger {
     /**
      * 완료된 단계 수를 퍼센트로 환산해 진행률 리스너에 전달한다.
      *
-     * @param listener 진행률 리스너
+     * @param listener       진행률 리스너
      * @param completedSteps 현재까지 완료한 병합 단계 수
-     * @param totalSteps 전체 병합 단계 수
-     * @param message 현재 단계 설명
+     * @param totalSteps     전체 병합 단계 수
+     * @param message        현재 단계 설명
      * @return 완료 단계 수
      */
     private static int reportProgress(
@@ -205,7 +208,7 @@ public final class ReportMerger {
      * @param document 플레이스홀더를 치환할 대상 문서
      */
     private static void applyReportDate(XWPFDocument document) {
-        String reportDate = buildNextMondayReportDate();
+        String reportDate = buildThisFridayDate();
         for (XWPFParagraph paragraph : document.getParagraphs()) {
             replacePlaceholderInParagraph(paragraph, REPORT_DATE_PLACEHOLDER, reportDate);
         }
@@ -217,7 +220,7 @@ public final class ReportMerger {
     /**
      * 표와 표 안의 중첩 표까지 재귀적으로 순회하며 플레이스홀더를 치환한다.
      *
-     * @param table 치환할 대상 표
+     * @param table       치환할 대상 표
      * @param placeholder 찾을 문자열
      * @param replacement 대체할 문자열
      */
@@ -238,7 +241,7 @@ public final class ReportMerger {
     /**
      * 문단 내 플레이스홀더를 치환하고 첫 run의 서식을 최대한 유지한다.
      *
-     * @param paragraph 치환 대상 문단
+     * @param paragraph   치환 대상 문단
      * @param placeholder 찾을 문자열
      * @param replacement 대체할 문자열
      */
@@ -271,13 +274,14 @@ public final class ReportMerger {
     }
 
     /**
-     * 오늘이 월요일이면 오늘 날짜를, 그렇지 않으면 다음 주 월요일 날짜를 `yyyy-MM-dd (요일)` 형식으로 생성한다.
+     * 오늘이 금요일이면 오늘 날짜를, 그렇지 않으면 금주 금요일 날짜를 `yyyy-MM-dd (요일)` 형식으로 생성한다.
      *
-     * @return 예: `2026-04-20 (월요일)` 형태의 보고일 문자열
+     * @return 예: `2026-04-24 (금)` 형태의 취합일 문자열
      */
-    private static String buildNextMondayReportDate() {
-        LocalDate nextMonday = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
-        return nextMonday.format(DateTimeFormatter.ISO_LOCAL_DATE) + " (" + getKoreanDayName(nextMonday.getDayOfWeek()) + ")";
+    private static String buildThisFridayDate() {
+        LocalDate friday = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+        return friday.format(DateTimeFormatter.ISO_LOCAL_DATE) + " (" + getKoreanDayName(friday.getDayOfWeek())
+                + ")";
     }
 
     /**
@@ -288,13 +292,13 @@ public final class ReportMerger {
      */
     private static String getKoreanDayName(DayOfWeek dayOfWeek) {
         return switch (dayOfWeek) {
-            case MONDAY -> "월요일";
-            case TUESDAY -> "화요일";
-            case WEDNESDAY -> "수요일";
-            case THURSDAY -> "목요일";
-            case FRIDAY -> "금요일";
-            case SATURDAY -> "토요일";
-            case SUNDAY -> "일요일";
+            case MONDAY -> "월";
+            case TUESDAY -> "화";
+            case WEDNESDAY -> "수";
+            case THURSDAY -> "목";
+            case FRIDAY -> "금";
+            case SATURDAY -> "토";
+            case SUNDAY -> "일";
         };
     }
 
@@ -302,9 +306,9 @@ public final class ReportMerger {
      * 일반 섹션 표를 병합한다.
      * 영업 현황 섹션은 첫 번째 열을 보존해야 하므로 별도 분기 처리한다.
      *
-     * @param targetDocument 병합 결과를 기록할 템플릿 문서
+     * @param targetDocument  병합 결과를 기록할 템플릿 문서
      * @param sourceDocuments 병합할 원본 문서 목록
-     * @param sectionSpec 섹션 제목과 표 위치 정보
+     * @param sectionSpec     섹션 제목과 표 위치 정보
      * @throws IOException 템플릿 섹션 표를 찾지 못한 경우
      */
     private static void mergeAppendSection(
@@ -357,7 +361,7 @@ public final class ReportMerger {
      * 인력 현황 섹션을 카테고리 기준으로 병합한다.
      * 숫자 셀은 합산하고, 문자열 셀은 줄바꿈으로 이어 붙이는 동작을 기대한다.
      *
-     * @param targetDocument 병합 결과를 기록할 템플릿 문서
+     * @param targetDocument  병합 결과를 기록할 템플릿 문서
      * @param sourceDocuments 병합할 원본 문서 목록
      * @throws IOException 템플릿 섹션 표를 찾지 못한 경우
      */
@@ -436,7 +440,7 @@ public final class ReportMerger {
     /**
      * 주요 이슈 섹션을 원본 문서별로 추출해 결과 문서 맨 뒤에 덧붙인다.
      *
-     * @param targetDocument 내용을 추가할 대상 문서
+     * @param targetDocument  내용을 추가할 대상 문서
      * @param sourceDocuments 원본 문서 목록
      */
     private static void appendIssuesSectionToDocumentEnd(
@@ -477,8 +481,8 @@ public final class ReportMerger {
      * 병합된 인력 현황 행에 합계 로직을 적용한다.
      * 데이터 행의 4열은 2열 + 3열로 계산하고, "합계" 행은 각 열의 데이터 합으로 재산정한다.
      *
-     * @param mergedRows 병합된 행 목록 (인덱스 0: 카테고리 자리, 1: 2열, 2: 3열, 3: 4열)
-     * @param accumulatorKeys mergedRows 각 행에 대응하는 templateCategories 인덱스
+     * @param mergedRows         병합된 행 목록 (인덱스 0: 카테고리 자리, 1: 2열, 2: 3열, 3: 4열)
+     * @param accumulatorKeys    mergedRows 각 행에 대응하는 templateCategories 인덱스
      * @param templateCategories 템플릿 카테고리 목록
      */
     private static void applyStaffSumCalculations(
@@ -571,10 +575,10 @@ public final class ReportMerger {
     /**
      * 인력 현황의 한 행이 템플릿 어느 행에 매핑될지 결정한다.
      *
-     * @param row 현재 원본 데이터 행
-     * @param fallbackRowIndex 카테고리 매칭 실패 시 사용할 기본 행 번호
+     * @param row                     현재 원본 데이터 행
+     * @param fallbackRowIndex        카테고리 매칭 실패 시 사용할 기본 행 번호
      * @param templateCategoryIndexes 템플릿 카테고리와 행 번호 매핑
-     * @param templateCategories 템플릿 카테고리 목록
+     * @param templateCategories      템플릿 카테고리 목록
      * @return 대상 행 번호, 매핑 불가 시 -1
      */
     private static int resolveStaffTargetRowIndex(
@@ -597,7 +601,7 @@ public final class ReportMerger {
     /**
      * 제목 문단 또는 표 내부 텍스트를 바탕으로 섹션의 표를 찾는다.
      *
-     * @param document 탐색할 문서
+     * @param document    탐색할 문서
      * @param sectionSpec 섹션 식별 정보
      * @return 찾은 표, 없으면 null
      */
@@ -644,7 +648,7 @@ public final class ReportMerger {
     /**
      * 특정 섹션 제목이 시작된 지점부터 문서 끝까지의 본문 요소를 추출한다.
      *
-     * @param document 탐색할 문서
+     * @param document    탐색할 문서
      * @param sectionSpec 섹션 식별 정보
      * @return 시작 지점 이후의 문단/표 목록
      */
@@ -713,7 +717,7 @@ public final class ReportMerger {
      * 현재는 팀명을 구분 헤더처럼 보여 주는 용도로 사용한다.
      *
      * @param document 문단을 추가할 대상 문서
-     * @param text 추가할 텍스트
+     * @param text     추가할 텍스트
      */
     private static void appendPlainParagraph(XWPFDocument document, String text) {
         XmlCursor cursor = document.getDocument().getBody().newCursor();
@@ -730,7 +734,7 @@ public final class ReportMerger {
      * 원본 문서의 문단 또는 표를 결과 문서 끝으로 복사한다.
      *
      * @param targetDocument 복사 대상을 붙여 넣을 결과 문서
-     * @param bodyElement 복사할 원본 본문 요소
+     * @param bodyElement    복사할 원본 본문 요소
      */
     private static void appendBodyElement(XWPFDocument targetDocument, IBodyElement bodyElement) {
         XmlCursor cursor = targetDocument.getDocument().getBody().newCursor();
@@ -772,7 +776,7 @@ public final class ReportMerger {
     /**
      * 문자열에 후보 텍스트 중 하나라도 포함되어 있는지 확인한다.
      *
-     * @param text 검사할 원본 문자열
+     * @param text       검사할 원본 문자열
      * @param candidates 포함 여부를 확인할 후보 문자열 목록
      * @return 하나라도 포함되면 true
      */
@@ -783,7 +787,7 @@ public final class ReportMerger {
     /**
      * 행 전체가 영업 섹션의 고정 헤더 행인지 판별한다.
      *
-     * @param row 비교할 행 값 목록
+     * @param row                      비교할 행 값 목록
      * @param normalizedFixedRowValues 정규화된 고정 헤더 문자열 목록
      * @return 모든 고정 문자열을 포함하는 헤더 행이면 true
      */
@@ -806,7 +810,7 @@ public final class ReportMerger {
      * 영업 현황 표에서 실제 데이터 행만 추출한다.
      * 반복 헤더와 빈 행을 제거한 뒤, 템플릿이 보존할 첫 번째 열은 제외한다.
      *
-     * @param table 원본 영업 현황 표
+     * @param table             원본 영업 현황 표
      * @param dataStartRowIndex 데이터가 시작되는 행 인덱스
      * @return 정제된 영업 행 목록
      */
@@ -834,7 +838,7 @@ public final class ReportMerger {
     /**
      * 영업 현황 표에서 반복 삽입된 고정 헤더 행을 제거한다.
      *
-     * @param rows 후보 영업 행 목록
+     * @param rows           후보 영업 행 목록
      * @param fixedRowValues 제거할 헤더 행의 기준 문자열
      * @return 고정 헤더가 제거된 영업 행 목록
      */
@@ -888,7 +892,7 @@ public final class ReportMerger {
     /**
      * 표에서 비어 있지 않은 데이터 행만 추출한다.
      *
-     * @param table 원본 표
+     * @param table             원본 표
      * @param dataStartRowIndex 데이터 시작 행 인덱스
      * @return 셀 문자열 목록으로 구성된 행들
      */
@@ -924,7 +928,7 @@ public final class ReportMerger {
     /**
      * 템플릿 표의 특정 열 값을 읽어 기준 데이터로 사용한다.
      *
-     * @param table 템플릿 표
+     * @param table       템플릿 표
      * @param columnIndex 추출할 열 인덱스
      * @return 추출된 열 값 목록
      */
@@ -945,7 +949,7 @@ public final class ReportMerger {
      * 템플릿 표의 데이터 영역을 새 행 목록으로 다시 구성한다.
      *
      * @param table 다시 작성할 표
-     * @param rows 기록할 데이터 행 목록
+     * @param rows  기록할 데이터 행 목록
      * @throws IOException 템플릿 표 구조가 비정상인 경우
      */
     private static void rewriteTableRows(XWPFTable table, List<List<String>> rows) throws IOException {
@@ -982,8 +986,8 @@ public final class ReportMerger {
     /**
      * 인력 현황 표를 다시 작성한 뒤 카테고리 열을 템플릿 값으로 복원한다.
      *
-     * @param table 대상 표
-     * @param rows 병합된 데이터 행
+     * @param table              대상 표
+     * @param rows               병합된 데이터 행
      * @param templateCategories 템플릿 카테고리 목록
      * @throws IOException 템플릿 표 구조가 비정상인 경우
      */
@@ -1012,10 +1016,10 @@ public final class ReportMerger {
     /**
      * 영업 현황 표를 다시 작성하되 특정 열은 템플릿 값을 유지한다.
      *
-     * @param table 대상 표
-     * @param rows 병합된 영업 데이터
+     * @param table                 대상 표
+     * @param rows                  병합된 영업 데이터
      * @param preservedColumnValues 유지할 템플릿 열 값
-     * @param preservedColumnIndex 유지할 열 인덱스
+     * @param preservedColumnIndex  유지할 열 인덱스
      * @throws IOException 템플릿 표 구조가 비정상인 경우
      */
     private static void rewriteSalesTableRowsPreservingColumn(
@@ -1065,8 +1069,8 @@ public final class ReportMerger {
     /**
      * 영업 행의 셀 내용과 서식을 대상 행의 지정 열부터 복사한다.
      *
-     * @param targetRow 복사 결과를 기록할 행
-     * @param sourceRow 복사할 원본 영업 행
+     * @param targetRow        복사 결과를 기록할 행
+     * @param sourceRow        복사할 원본 영업 행
      * @param startColumnIndex 붙여 넣기를 시작할 대상 열 인덱스
      */
     private static void copySalesRow(XWPFTableRow targetRow, SalesRowData sourceRow, int startColumnIndex) {
@@ -1107,7 +1111,7 @@ public final class ReportMerger {
     /**
      * 템플릿 행의 스타일을 복사한 새 행을 생성한다.
      *
-     * @param table 행을 추가할 표
+     * @param table       행을 추가할 표
      * @param templateRow 스타일 기준 행
      * @return 스타일이 적용된 새 행
      */
@@ -1133,7 +1137,7 @@ public final class ReportMerger {
     /**
      * 요청한 열 인덱스의 셀을 반환하고, 부족하면 새 셀을 추가해 맞춘다.
      *
-     * @param row 셀을 가져올 대상 행
+     * @param row       셀을 가져올 대상 행
      * @param cellIndex 필요한 셀 인덱스
      * @return 지정 위치의 셀
      */
@@ -1148,7 +1152,7 @@ public final class ReportMerger {
      * 템플릿 행의 높이와 행 속성을 대상 행에 복사한다.
      *
      * @param templateRow 서식 기준이 되는 템플릿 행
-     * @param targetRow 서식을 적용할 대상 행
+     * @param targetRow   서식을 적용할 대상 행
      */
     private static void copyRowStyle(XWPFTableRow templateRow, XWPFTableRow targetRow) {
         if (templateRow == null || targetRow == null) {
@@ -1170,7 +1174,7 @@ public final class ReportMerger {
      * 템플릿 셀의 테두리, 정렬 등 셀/문단 속성을 대상 셀에 복사한다.
      *
      * @param templateCell 서식 기준이 되는 셀
-     * @param targetCell 서식을 적용할 대상 셀
+     * @param targetCell   서식을 적용할 대상 셀
      */
     private static void copyCellStyle(XWPFTableCell templateCell, XWPFTableCell targetCell) {
         if (templateCell == null || targetCell == null) {
@@ -1214,7 +1218,7 @@ public final class ReportMerger {
      * 행의 각 셀에 문자열 값을 순서대로 기록한다.
      * 필요한 경우 부족한 셀을 자동으로 생성한다.
      *
-     * @param row 값을 기록할 대상 행
+     * @param row    값을 기록할 대상 행
      * @param values 기록할 셀 값 목록
      */
     private static void setRowValues(XWPFTableRow row, List<String> values) {
@@ -1275,7 +1279,7 @@ public final class ReportMerger {
      * 셀에 텍스트를 기록한다.
      * 줄바꿈은 Word 줄바꿈으로 변환되므로 결과 문서에서도 여러 줄 출력이 유지된다.
      *
-     * @param cell 값을 기록할 셀
+     * @param cell  값을 기록할 셀
      * @param value 기록할 문자열
      */
     private static void setCellText(XWPFTableCell cell, String value) {
