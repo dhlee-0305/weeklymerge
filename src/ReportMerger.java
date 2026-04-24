@@ -2,6 +2,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DecimalFormat;
@@ -10,24 +11,34 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.apache.poi.xwpf.usermodel.IBodyElement;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFAbstractNum;
+import org.apache.poi.xwpf.usermodel.XWPFNum;
+import org.apache.poi.xwpf.usermodel.XWPFNumbering;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.XWPFStyle;
+import org.apache.poi.xwpf.usermodel.XWPFStyles;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTNum;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRow;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTrPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
@@ -67,6 +78,12 @@ public final class ReportMerger {
     private static final DecimalFormat NUMBER_FORMAT = new DecimalFormat("0.################");
     private static final ProgressListener NO_OP_PROGRESS_LISTENER = (percent, message) -> {
     };
+    private static final String WORDPROCESSINGML_NAMESPACE =
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private static final javax.xml.namespace.QName WORD_VAL_ATTRIBUTE =
+            new javax.xml.namespace.QName(WORDPROCESSINGML_NAMESPACE, "val");
+    private static final Set<String> STYLE_REFERENCE_ELEMENTS = Set.of(
+            "basedOn", "link", "next", "pStyle", "rStyle", "tblStyle");
 
     private ReportMerger() {
     }
@@ -464,13 +481,18 @@ public final class ReportMerger {
                     targetDocument,
                     "[" + extractTeamName(sourceDocument.path()) + "]");
 
+            Map<BigInteger, BigInteger> numberingIdMap = new LinkedHashMap<>();
+            Map<String, String> styleIdMap = ensureSourceStylesAvailable(
+                    targetDocument,
+                    sourceDocument.document(),
+                    numberingIdMap);
             for (IBodyElement bodyElement : sectionElements) {
                 if (bodyElement instanceof XWPFParagraph paragraph
                         && isIssuesTitleParagraph(paragraph)) {
                     // 팀명을 별도 헤더로 추가하므로 원본 섹션 제목은 중복 출력하지 않는다.
                     continue;
                 }
-                appendBodyElement(targetDocument, bodyElement);
+                appendBodyElement(targetDocument, sourceDocument.document(), bodyElement, numberingIdMap, styleIdMap);
             }
 
             appendedAnyContent = true;
@@ -736,19 +758,279 @@ public final class ReportMerger {
      * @param targetDocument 복사 대상을 붙여 넣을 결과 문서
      * @param bodyElement    복사할 원본 본문 요소
      */
-    private static void appendBodyElement(XWPFDocument targetDocument, IBodyElement bodyElement) {
+    private static void appendBodyElement(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            IBodyElement bodyElement,
+            Map<BigInteger, BigInteger> numberingIdMap,
+            Map<String, String> styleIdMap) {
         XmlCursor cursor = targetDocument.getDocument().getBody().newCursor();
         cursor.toEndToken();
 
         if (bodyElement instanceof XWPFParagraph paragraph) {
             XWPFParagraph appendedParagraph = targetDocument.insertNewParagraph(cursor);
             appendedParagraph.getCTP().set((CTP) paragraph.getCTP().copy());
+            remapStyleReferences(appendedParagraph.getCTP(), styleIdMap);
+            remapParagraphNumbering(targetDocument, sourceDocument, appendedParagraph, numberingIdMap, styleIdMap);
         } else if (bodyElement instanceof XWPFTable table) {
             XWPFTable appendedTable = targetDocument.insertNewTbl(cursor);
             appendedTable.getCTTbl().set((CTTbl) table.getCTTbl().copy());
+            remapStyleReferences(appendedTable.getCTTbl(), styleIdMap);
+            remapTableNumbering(targetDocument, sourceDocument, appendedTable, numberingIdMap, styleIdMap);
         }
 
         cursor.dispose();
+    }
+
+    private static void remapTableNumbering(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            XWPFTable targetTable,
+            Map<BigInteger, BigInteger> numberingIdMap,
+            Map<String, String> styleIdMap) {
+        for (XWPFTableRow row : targetTable.getRows()) {
+            for (XWPFTableCell cell : row.getTableCells()) {
+                for (XWPFParagraph paragraph : cell.getParagraphs()) {
+                    remapParagraphNumbering(targetDocument, sourceDocument, paragraph, numberingIdMap, styleIdMap);
+                }
+                for (XWPFTable nestedTable : cell.getTables()) {
+                    remapTableNumbering(targetDocument, sourceDocument, nestedTable, numberingIdMap, styleIdMap);
+                }
+            }
+        }
+    }
+
+    private static Map<String, String> ensureSourceStylesAvailable(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            Map<BigInteger, BigInteger> numberingIdMap) {
+        Map<String, String> styleIdMap = new LinkedHashMap<>();
+        XWPFStyles sourceStyles = sourceDocument.getStyles();
+        if (sourceStyles == null) {
+            return styleIdMap;
+        }
+
+        XWPFStyles targetStyles = targetDocument.getStyles();
+        if (targetStyles == null) {
+            targetStyles = targetDocument.createStyles();
+        }
+
+        Set<String> reservedStyleIds = new HashSet<>();
+        for (XWPFStyle sourceStyle : sourceStyles.getStyles()) {
+            String styleId = sourceStyle.getStyleId();
+            if (styleId == null || styleId.isBlank()) {
+                continue;
+            }
+
+            XWPFStyle targetStyle = targetStyles.getStyle(styleId);
+            if (targetStyle == null || hasSameStyleDefinition(sourceStyle, targetStyle)) {
+                styleIdMap.put(styleId, styleId);
+                reservedStyleIds.add(styleId);
+                continue;
+            }
+
+            String copiedStyleId = buildCopiedStyleId(styleId, targetStyles, reservedStyleIds);
+            styleIdMap.put(styleId, copiedStyleId);
+            reservedStyleIds.add(copiedStyleId);
+        }
+
+        for (XWPFStyle sourceStyle : sourceStyles.getStyles()) {
+            String styleId = sourceStyle.getStyleId();
+            String targetStyleId = styleIdMap.get(styleId);
+            if (targetStyleId == null || targetStyles.styleExist(targetStyleId)) {
+                continue;
+            }
+
+            CTStyle copiedStyle = (CTStyle) sourceStyle.getCTStyle().copy();
+            copiedStyle.setStyleId(targetStyleId);
+            remapStyleReferences(copiedStyle, styleIdMap);
+            remapNumberingReferences(targetDocument, sourceDocument, copiedStyle, numberingIdMap, styleIdMap);
+            targetStyles.addStyle(new XWPFStyle(copiedStyle));
+        }
+
+        return styleIdMap;
+    }
+
+    private static boolean hasSameStyleDefinition(XWPFStyle sourceStyle, XWPFStyle targetStyle) {
+        return sourceStyle.getCTStyle().xmlText().equals(targetStyle.getCTStyle().xmlText());
+    }
+
+    private static String buildCopiedStyleId(
+            String sourceStyleId,
+            XWPFStyles targetStyles,
+            Set<String> reservedStyleIds) {
+        String baseStyleId = "wm_" + sanitizeStyleId(sourceStyleId);
+        int suffix = 1;
+        String candidate = baseStyleId;
+        while (targetStyles.styleExist(candidate) || reservedStyleIds.contains(candidate)) {
+            suffix++;
+            candidate = baseStyleId + "_" + suffix;
+        }
+        return candidate;
+    }
+
+    private static String sanitizeStyleId(String styleId) {
+        String sanitized = styleId.replaceAll("[^A-Za-z0-9_]", "_");
+        if (sanitized.isBlank()) {
+            return "style";
+        }
+        return sanitized.length() > 32 ? sanitized.substring(0, 32) : sanitized;
+    }
+
+    private static void remapParagraphNumbering(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            XWPFParagraph paragraph,
+            Map<BigInteger, BigInteger> numberingIdMap,
+            Map<String, String> styleIdMap) {
+        if (!paragraph.getCTP().isSetPPr()
+                || !paragraph.getCTP().getPPr().isSetNumPr()
+                || !paragraph.getCTP().getPPr().getNumPr().isSetNumId()) {
+            return;
+        }
+
+        BigInteger sourceNumId = paragraph.getCTP().getPPr().getNumPr().getNumId().getVal();
+        BigInteger targetNumId = resolveTargetNumberingId(
+                targetDocument,
+                sourceDocument,
+                sourceNumId,
+                numberingIdMap,
+                styleIdMap);
+        if (targetNumId != null) {
+            paragraph.getCTP().getPPr().getNumPr().getNumId().setVal(targetNumId);
+        }
+    }
+
+    private static void remapStyleReferences(
+            org.apache.xmlbeans.XmlObject xmlObject,
+            Map<String, String> styleIdMap) {
+        if (styleIdMap.isEmpty()) {
+            return;
+        }
+
+        try (XmlCursor cursor = xmlObject.newCursor()) {
+            while (cursor.hasNextToken()) {
+                cursor.toNextToken();
+                javax.xml.namespace.QName name = cursor.getName();
+                if (name == null
+                        || !STYLE_REFERENCE_ELEMENTS.contains(name.getLocalPart())
+                        || !WORDPROCESSINGML_NAMESPACE.equals(name.getNamespaceURI())) {
+                    continue;
+                }
+
+                String sourceStyleId = cursor.getAttributeText(WORD_VAL_ATTRIBUTE);
+                String targetStyleId = styleIdMap.get(sourceStyleId);
+                if (targetStyleId != null) {
+                    cursor.setAttributeText(WORD_VAL_ATTRIBUTE, targetStyleId);
+                }
+            }
+        }
+    }
+
+    private static void remapNumberingReferences(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            org.apache.xmlbeans.XmlObject xmlObject,
+            Map<BigInteger, BigInteger> numberingIdMap,
+            Map<String, String> styleIdMap) {
+        try (XmlCursor cursor = xmlObject.newCursor()) {
+            while (cursor.hasNextToken()) {
+                cursor.toNextToken();
+                javax.xml.namespace.QName name = cursor.getName();
+                if (name == null
+                        || !"numId".equals(name.getLocalPart())
+                        || !WORDPROCESSINGML_NAMESPACE.equals(name.getNamespaceURI())) {
+                    continue;
+                }
+
+                String sourceNumIdText = cursor.getAttributeText(WORD_VAL_ATTRIBUTE);
+                if (sourceNumIdText == null || sourceNumIdText.isBlank()) {
+                    continue;
+                }
+
+                BigInteger sourceNumId;
+                try {
+                    sourceNumId = new BigInteger(sourceNumIdText);
+                } catch (NumberFormatException exception) {
+                    continue;
+                }
+
+                BigInteger targetNumId = resolveTargetNumberingId(
+                        targetDocument,
+                        sourceDocument,
+                        sourceNumId,
+                        numberingIdMap,
+                        styleIdMap);
+                if (targetNumId != null) {
+                    cursor.setAttributeText(WORD_VAL_ATTRIBUTE, targetNumId.toString());
+                }
+            }
+        }
+    }
+
+    private static BigInteger resolveTargetNumberingId(
+            XWPFDocument targetDocument,
+            XWPFDocument sourceDocument,
+            BigInteger sourceNumId,
+            Map<BigInteger, BigInteger> numberingIdMap,
+            Map<String, String> styleIdMap) {
+        if (sourceNumId == null) {
+            return null;
+        }
+
+        BigInteger mappedNumId = numberingIdMap.get(sourceNumId);
+        if (mappedNumId != null) {
+            return mappedNumId;
+        }
+
+        XWPFNumbering sourceNumbering = sourceDocument.getNumbering();
+        XWPFNum sourceNum = sourceNumbering == null ? null : sourceNumbering.getNum(sourceNumId);
+        if (sourceNum == null) {
+            return sourceNumId;
+        }
+
+        BigInteger sourceAbstractNumId = sourceNum.getCTNum().getAbstractNumId().getVal();
+        if (sourceAbstractNumId == null) {
+            return sourceNumId;
+        }
+
+        XWPFAbstractNum sourceAbstractNum = sourceNumbering.getAbstractNum(sourceAbstractNumId);
+        if (sourceAbstractNum == null) {
+            return sourceNumId;
+        }
+
+        XWPFNumbering targetNumbering = targetDocument.getNumbering();
+        if (targetNumbering == null) {
+            targetNumbering = targetDocument.createNumbering();
+        }
+
+        CTAbstractNum copiedAbstractNum = (CTAbstractNum) sourceAbstractNum.getCTAbstractNum().copy();
+        remapStyleReferences(copiedAbstractNum, styleIdMap);
+        copiedAbstractNum.setAbstractNumId(nextAvailableAbstractNumId(targetNumbering));
+        BigInteger targetAbstractNumId = targetNumbering.addAbstractNum(new XWPFAbstractNum(copiedAbstractNum));
+        BigInteger targetNumId = nextAvailableNumId(targetNumbering);
+        CTNum copiedNum = (CTNum) sourceNum.getCTNum().copy();
+        copiedNum.setNumId(targetNumId);
+        copiedNum.getAbstractNumId().setVal(targetAbstractNumId);
+        targetNumbering.addNum(new XWPFNum(copiedNum, targetNumbering));
+        numberingIdMap.put(sourceNumId, targetNumId);
+        return targetNumId;
+    }
+
+    private static BigInteger nextAvailableAbstractNumId(XWPFNumbering numbering) {
+        BigInteger abstractNumId = BigInteger.ZERO;
+        while (numbering.getAbstractNum(abstractNumId) != null) {
+            abstractNumId = abstractNumId.add(BigInteger.ONE);
+        }
+        return abstractNumId;
+    }
+
+    private static BigInteger nextAvailableNumId(XWPFNumbering numbering) {
+        BigInteger numId = BigInteger.ONE;
+        while (numbering.getNum(numId) != null) {
+            numId = numId.add(BigInteger.ONE);
+        }
+        return numId;
     }
 
     /**
