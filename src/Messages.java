@@ -8,7 +8,7 @@ import java.util.Properties;
 
 /**
  * messages.properties에서 사용자 노출 메시지를 읽어 제공한다.
- * 현재 작업 폴더의 messages.properties를 우선 로드하고, 없으면 클래스패스에서 로드한다.
+ * 실행 폴더의 messages.properties를 우선 로드하고, 없으면 JAR에 포함된 기본 메시지를 클래스패스에서 로드한다.
  * 키가 없으면 키 이름을 그대로 반환한다.
  */
 public final class Messages {
@@ -29,9 +29,10 @@ public final class Messages {
     }
 
     /**
-     * 현재 작업 폴더의 messages.properties를 읽어 메시지 목록에 적재한다.
+     * 실행 폴더에 별도로 배치된 messages.properties를 읽어 메시지 목록에 적재한다.
+     * 배포 후 문구만 바꾸고 싶을 때 JAR 내부 기본 메시지보다 이 파일이 우선 적용된다.
      *
-     * @return 작업 폴더에서 메시지 파일을 정상 로드했으면 true
+     * @return 실행 폴더에서 메시지 파일을 정상 로드했으면 true
      */
     private static boolean tryLoadFromWorkingDirectory() {
         var path = Paths.get(MESSAGES_FILE_NAME);
@@ -47,7 +48,7 @@ public final class Messages {
     }
 
     /**
-     * 클래스패스에 포함된 기본 messages.properties를 읽어 메시지 목록에 적재한다.
+     * src/main/resources에 두어 JAR 내부에 포함된 기본 messages.properties를 읽어 메시지 목록에 적재한다.
      */
     private static void tryLoadFromClasspath() {
         try (InputStream stream = Messages.class.getResourceAsStream("/" + MESSAGES_FILE_NAME)) {
@@ -55,7 +56,7 @@ public final class Messages {
                 PROPERTIES.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
             }
         } catch (IOException e) {
-            // 어디서도 파일을 읽지 못하면 키 이름을 그대로 표시한다.
+            // 기본 메시지도 읽지 못하면 키 이름을 그대로 표시한다.
         }
     }
 

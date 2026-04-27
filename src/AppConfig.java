@@ -5,7 +5,8 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * app.properties에서 경로 설정을 읽어 앱 전반에서 사용할 경로를 제공한다.
+ * 실행 폴더의 app.properties에서 경로 설정을 읽어 앱 전반에서 사용할 경로를 제공한다.
+ * 배포 환경별 경로는 JAR 옆의 app.properties로 관리하고,
  * 설정 파일이 없거나 값이 유효하지 않으면 현재 작업 폴더 기반 기본 경로를 사용한다.
  */
 public final class AppConfig {
@@ -37,7 +38,7 @@ public final class AppConfig {
      */
     private static Path loadConfiguredAbsolutePath(String key, Path defaultPath) {
         Path configPath = Paths.get(CONFIG_FILE_NAME);
-        // 설정 파일이 없어도 앱은 동작해야 하므로 기본 경로를 그대로 사용한다.
+        // 실행 폴더에 설정 파일이 없어도 앱은 동작해야 하므로 기본 경로를 그대로 사용한다.
         if (!Files.exists(configPath)) {
             return defaultPath;
         }
