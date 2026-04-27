@@ -3,10 +3,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.beans.PropertyChangeEvent;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -29,23 +27,10 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 public class WeeklyMergeApp extends JFrame {
-    // 설정된 원본 경로가 없거나 유효하지 않으면 현재 작업 폴더를 기본 경로로 사용한다.
-    private static final String CONFIG_FILE_NAME = "app.properties";
-    private static final String REPORT_DOC_PATH_KEY = "report.doc.path";
-    private static final String REPORT_DOC_OUT_PATH_KEY = "report.doc.out.path";
-    private static final Path DEFAULT_REPORT_DOC_PATH = Paths.get(System.getProperty("user.dir"));
-    private static final Path REPORT_DOC_PATH = loadConfiguredAbsolutePath(REPORT_DOC_PATH_KEY,
-            DEFAULT_REPORT_DOC_PATH);
-    // 병합 결과 문서는 기본적으로 현재 작업 폴더 아래의 `output` 폴더에 저장한다.
-    private static final Path DEFAULT_REPORT_DOC_OUT_PATH = Paths.get(System.getProperty("user.dir"), "output");
-    private static final Path REPORT_DOC_OUT_PATH = loadConfiguredAbsolutePath(
-            REPORT_DOC_OUT_PATH_KEY,
-            DEFAULT_REPORT_DOC_OUT_PATH);
-
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> fileList = new JList<>(listModel);
-    private final JButton refreshButton = new JButton("Refresh Folder");
-    private final JButton mergeReportsButton = new JButton("Merge Reports");
+    private final JButton refreshButton = new JButton(Messages.get("button.refresh"));
+    private final JButton mergeReportsButton = new JButton(Messages.get("button.merge"));
     private final List<String> selectionOrder = new ArrayList<>();
 
     /**
@@ -53,79 +38,9 @@ public class WeeklyMergeApp extends JFrame {
      * 창이 표시되면 사용자는 바로 병합 가능한 보고서 목록을 확인할 수 있다.
      */
     public WeeklyMergeApp() {
-        super("Weekly Report Merge");
+        super(Messages.get("window.title"));
         initializeUi();
         loadDocFiles();
-    }
-
-    /**
-     * 설정 파일에서 절대 경로를 읽고, 사용할 수 없으면 기본 경로를 반환한다.
-     *
-     * @param key         읽어 올 설정 키
-     * @param defaultPath 설정값이 없거나 잘못된 경우 사용할 기본 경로
-     * @return 정규화된 절대 경로 또는 기본 경로
-     */
-    private static Path loadConfiguredAbsolutePath(String key, Path defaultPath) {
-        Path configPath = Paths.get(CONFIG_FILE_NAME);
-        // 설정 파일이 없어도 앱은 동작해야 하므로 기본 경로를 그대로 사용한다.
-        if (!Files.exists(configPath)) {
-            return defaultPath;
-        }
-
-        try {
-            String configuredPath = readConfigValue(configPath, key);
-            // 값이 비어 있으면 경로가 지정되지 않은 것으로 보고 기본 경로로 되돌린다.
-            if (configuredPath.isEmpty()) {
-                return defaultPath;
-            }
-
-            Path resolvedPath = Paths.get(configuredPath);
-            // 상대 경로는 실행 위치에 따라 해석이 달라질 수 있어 허용하지 않는다.
-            if (!resolvedPath.isAbsolute()) {
-                return defaultPath;
-            }
-
-            return resolvedPath.normalize();
-        } catch (IOException exception) {
-            // 설정 파일을 읽지 못해도 앱 기능은 계속 사용할 수 있어야 하므로 기본 경로를 반환한다.
-            return defaultPath;
-        }
-    }
-
-    /**
-     * 단순한 {@code key=value} 형식의 설정 파일에서 특정 키의 값을 찾는다.
-     *
-     * @param configPath 설정 파일 경로
-     * @param key        읽어 올 설정 키
-     * @return 일치하는 값, 없으면 빈 문자열
-     * @throws IOException 설정 파일을 읽을 수 없는 경우
-     */
-    private static String readConfigValue(Path configPath, String key) throws IOException {
-        List<String> lines = Files.readAllLines(configPath);
-
-        for (String line : lines) {
-            String trimmedLine = line.trim();
-            // 빈 줄과 주석 줄은 실제 설정 항목이 아니므로 건너뛴다.
-            if (trimmedLine.isEmpty() || trimmedLine.startsWith("#") || trimmedLine.startsWith("!")) {
-                continue;
-            }
-
-            int separatorIndex = trimmedLine.indexOf('=');
-            // '=' 문자가 없으면 기대한 설정 형식이 아니므로 무시한다.
-            if (separatorIndex < 0) {
-                continue;
-            }
-
-            String currentKey = trimmedLine.substring(0, separatorIndex).trim();
-            // 요청한 키와 일치하는 항목만 반환하고 나머지는 계속 탐색한다.
-            if (!key.equals(currentKey)) {
-                continue;
-            }
-
-            return trimmedLine.substring(separatorIndex + 1).trim();
-        }
-
-        return "";
     }
 
     /**
@@ -136,8 +51,8 @@ public class WeeklyMergeApp extends JFrame {
         setLayout(new BorderLayout(12, 12));
 
         JPanel infoPanel = new JPanel(new GridLayout(2, 1));
-        infoPanel.add(new JLabel("Source Path: " + REPORT_DOC_PATH.toAbsolutePath()));
-        infoPanel.add(new JLabel("Output Path: " + REPORT_DOC_OUT_PATH.toAbsolutePath()));
+        infoPanel.add(new JLabel(Messages.format("label.source.path", AppConfig.REPORT_DOC_PATH.toAbsolutePath())));
+        infoPanel.add(new JLabel(Messages.format("label.output.path", AppConfig.REPORT_DOC_OUT_PATH.toAbsolutePath())));
 
         fileList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         fileList.addListSelectionListener(e -> {
@@ -182,16 +97,16 @@ public class WeeklyMergeApp extends JFrame {
         selectionOrder.clear();
 
         // 원본 폴더가 없으면 사용자가 파일을 선택할 수 없으므로 경고 후 종료한다.
-        if (!Files.isDirectory(REPORT_DOC_PATH)) {
+        if (!Files.isDirectory(AppConfig.REPORT_DOC_PATH)) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Source folder was not found.\nPath: " + REPORT_DOC_PATH.toAbsolutePath(),
-                    "Folder Not Found",
+                    Messages.format("error.source.folder.not.found", AppConfig.REPORT_DOC_PATH.toAbsolutePath()),
+                    Messages.get("dialog.title.folder.not.found"),
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        try (Stream<Path> paths = Files.list(REPORT_DOC_PATH)) {
+        try (Stream<Path> paths = Files.list(AppConfig.REPORT_DOC_PATH)) {
             List<String> docFiles = paths
                     .filter(Files::isRegularFile)
                     .map(Path::getFileName)
@@ -207,7 +122,7 @@ public class WeeklyMergeApp extends JFrame {
 
             // 병합 가능한 문서가 없으면 안내 문구만 보여 주고 목록 선택을 비활성화한다.
             if (docFiles.isEmpty()) {
-                listModel.addElement("No source .docx files found.");
+                listModel.addElement(Messages.get("filelist.empty"));
                 fileList.setEnabled(false);
                 return;
             }
@@ -218,8 +133,8 @@ public class WeeklyMergeApp extends JFrame {
         } catch (Exception exception) {
             JOptionPane.showMessageDialog(
                     this,
-                    "An error occurred while reading the file list.\n" + exception.getMessage(),
-                    "Error",
+                    Messages.format("error.file.list.read", exception.getMessage()),
+                    Messages.get("dialog.title.error"),
                     JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -233,36 +148,36 @@ public class WeeklyMergeApp extends JFrame {
         if (selectionOrder.isEmpty()) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Select one or more report files to merge.",
-                    "Notice",
+                    Messages.get("notice.select.files"),
+                    Messages.get("dialog.title.notice"),
                     JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
         // 출력 폴더가 없으면 결과 파일을 저장할 수 없으므로 병합을 시작하지 않는다.
-        if (!Files.isDirectory(REPORT_DOC_OUT_PATH)) {
+        if (!Files.isDirectory(AppConfig.REPORT_DOC_OUT_PATH)) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Output folder was not found.\nPath: " + REPORT_DOC_OUT_PATH.toAbsolutePath(),
-                    "Folder Not Found",
+                    Messages.format("error.output.folder.not.found", AppConfig.REPORT_DOC_OUT_PATH.toAbsolutePath()),
+                    Messages.get("dialog.title.folder.not.found"),
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         List<Path> sourceFiles = selectionOrder.stream()
-                .map(name -> REPORT_DOC_PATH.resolve(name))
+                .map(name -> AppConfig.REPORT_DOC_PATH.resolve(name))
                 .collect(Collectors.toList());
 
         // 병합 중에는 중복 실행을 막기 위해 메인 화면 조작을 잠시 비활성화한다.
         setMergeControlsEnabled(false);
         MergeProgressDialog progressDialog = new MergeProgressDialog(this);
-        progressDialog.updateProgress(0, "Preparing merge...");
+        progressDialog.updateProgress(0, Messages.get("progress.preparing"));
 
         // 병합은 EDT 밖에서 실행해 UI가 멈추지 않도록 한다.
         SwingWorker<Path, String> worker = new SwingWorker<>() {
             @Override
             protected Path doInBackground() throws Exception {
-                return ReportMerger.mergeReports(sourceFiles, REPORT_DOC_OUT_PATH, (percent, message) -> {
+                return ReportMerger.mergeReports(sourceFiles, AppConfig.REPORT_DOC_OUT_PATH, (percent, message) -> {
                     // 진행률과 단계 메시지를 SwingWorker를 통해 UI 스레드로 전달한다.
                     setProgress(percent);
                     publish(message);
@@ -324,7 +239,7 @@ public class WeeklyMergeApp extends JFrame {
         mergeReportsButton.setEnabled(enabled);
         // 목록은 화면이 활성 상태이고 실제 선택 가능한 항목이 있을 때만 켠다.
         fileList.setEnabled(
-                enabled && !listModel.isEmpty() && !"No source .docx files found.".equals(listModel.get(0)));
+                enabled && !listModel.isEmpty() && !Messages.get("filelist.empty").equals(listModel.get(0)));
     }
 
     /**
@@ -332,10 +247,10 @@ public class WeeklyMergeApp extends JFrame {
      * 작업 중에는 닫을 수 없고, 완료 후에는 닫을 수 있다.
      */
     private static final class MergeProgressDialog extends JDialog {
-        private final JLabel statusLabel = new JLabel("Preparing merge...");
+        private final JLabel statusLabel = new JLabel(Messages.get("progress.preparing"));
         private final JLabel detailLabel = new JLabel(" ");
         private final JProgressBar progressBar = new JProgressBar(0, 100);
-        private final JButton closeButton = new JButton("Close");
+        private final JButton closeButton = new JButton(Messages.get("button.close"));
 
         /**
          * 진행 팝업의 기본 UI를 구성한다.
@@ -343,7 +258,7 @@ public class WeeklyMergeApp extends JFrame {
          * @param owner 부모 프레임
          */
         MergeProgressDialog(JFrame owner) {
-            super(owner, "Merging Reports", true);
+            super(owner, Messages.get("dialog.merge.title"), true);
             setLayout(new BorderLayout(12, 12));
             setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
 
@@ -407,8 +322,8 @@ public class WeeklyMergeApp extends JFrame {
          * @param outputFile 생성된 병합 결과 문서
          */
         void completeSuccessfully(Path outputFile) {
-            statusLabel.setText("Merge complete.");
-            detailLabel.setText("<html>Merged report created:<br>" + outputFile.toAbsolutePath() + "</html>");
+            statusLabel.setText(Messages.get("progress.complete"));
+            detailLabel.setText(Messages.format("progress.complete.detail", outputFile.toAbsolutePath()));
             progressBar.setValue(100);
             progressBar.setString("100%");
             finish();
@@ -420,9 +335,9 @@ public class WeeklyMergeApp extends JFrame {
          * @param errorMessage 사용자에게 보여 줄 오류 설명
          */
         void completeWithError(String errorMessage) {
-            statusLabel.setText("Merge failed.");
-            detailLabel.setText("<html>Failed to merge reports.<br>" + escapeHtml(errorMessage) + "</html>");
-            progressBar.setString("Failed");
+            statusLabel.setText(Messages.get("progress.failed"));
+            detailLabel.setText(Messages.format("progress.failed.detail", escapeHtml(errorMessage)));
+            progressBar.setString(Messages.get("progress.failed.label"));
             finish();
         }
 
@@ -460,7 +375,7 @@ public class WeeklyMergeApp extends JFrame {
      */
     private static String buildErrorMessage(Throwable throwable) {
         if (throwable == null) {
-            return "Unknown error";
+            return Messages.get("error.unknown");
         }
 
         // SwingWorker#get은 원인 예외를 감쌀 수 있으므로 내부 예외를 우선 사용한다.

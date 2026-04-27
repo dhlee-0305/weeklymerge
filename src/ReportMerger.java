@@ -134,17 +134,17 @@ public final class ReportMerger {
         int completedSteps = 0;
 
         // 병합 시작 직후 0% 상태를 먼저 전달해 UI가 바로 반응하도록 한다.
-        listener.onProgress(0, "Preparing merge...");
+        listener.onProgress(0, Messages.get("progress.preparing"));
         // 템플릿이 없으면 이후 병합 흐름 전체가 성립하지 않으므로 즉시 예외를 발생시킨다.
         if (!Files.exists(templatePath)) {
-            throw new IOException("Template file not found: " + templatePath.toAbsolutePath());
+            throw new IOException(Messages.format("error.template.not.found", templatePath.toAbsolutePath()));
         }
 
         try (InputStream templateStream = Files.newInputStream(templatePath);
                 XWPFDocument targetDocument = new XWPFDocument(templateStream)) {
-            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Template loaded.");
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.template.loaded"));
             applyReportDate(targetDocument);
-            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Applied report date.");
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.date.applied"));
 
             List<SourceDocument> sourceDocuments = new ArrayList<>();
             try {
@@ -154,21 +154,21 @@ public final class ReportMerger {
                             listener,
                             completedSteps + 1,
                             totalSteps,
-                            "Loaded source file: " + sourceFile.getFileName());
+                            Messages.format("progress.file.loaded", sourceFile.getFileName()));
                 }
 
                 // 템플릿 섹션 순서대로 병합해 최종 보고서 레이아웃이 기대한 형태를 유지하도록 한다.
                 mergeAppendSection(targetDocument, sourceDocuments, PROJECT_STATUS_SECTION);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
-                        "Merged project status section.");
+                        Messages.get("progress.section.project"));
                 mergeStaffSection(targetDocument, sourceDocuments);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
-                        "Merged staff status section.");
+                        Messages.get("progress.section.staff"));
                 mergeAppendSection(targetDocument, sourceDocuments, SALES_STATUS_SECTION);
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
-                        "Merged sales status section.");
+                        Messages.get("progress.section.sales"));
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
-                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, "Appended issues section.");
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.section.issues"));
 
                 // 현재 날짜 접두어와 고정 suffix를 조합해 결과 파일명을 만든다.
                 Path outputFile = outputDirectory.resolve(
@@ -176,7 +176,7 @@ public final class ReportMerger {
                 try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
                     targetDocument.write(outputStream);
                 }
-                reportProgress(listener, totalSteps, totalSteps, "Merge completed.");
+                reportProgress(listener, totalSteps, totalSteps, Messages.get("progress.merge.completed"));
                 return outputFile;
             } finally {
                 // 파일 잠금과 리소스 누수를 막기 위해 연 원본 문서는 모두 닫는다.
@@ -334,9 +334,8 @@ public final class ReportMerger {
             SectionSpec sectionSpec) throws IOException {
         XWPFTable targetTable = findSectionTable(targetDocument, sectionSpec);
         if (targetTable == null) {
-            throw new IOException("Template section table not found. Expected one of: "
-                    + String.join(", ", sectionSpec.titles())
-                    + " or fallback table index " + (sectionSpec.tableIndex() + 1));
+            throw new IOException(Messages.format("error.template.section.not.found",
+                    String.join(", ", sectionSpec.titles()), sectionSpec.tableIndex() + 1));
         }
 
         List<List<String>> mergedRows = new ArrayList<>();
@@ -387,9 +386,8 @@ public final class ReportMerger {
             List<SourceDocument> sourceDocuments) throws IOException {
         XWPFTable targetTable = findSectionTable(targetDocument, STAFF_STATUS_SECTION);
         if (targetTable == null) {
-            throw new IOException("Template section table not found. Expected one of: "
-                    + String.join(", ", STAFF_STATUS_SECTION.titles())
-                    + " or fallback table index " + (STAFF_STATUS_SECTION.tableIndex() + 1));
+            throw new IOException(Messages.format("error.template.section.not.found",
+                    String.join(", ", STAFF_STATUS_SECTION.titles()), STAFF_STATUS_SECTION.tableIndex() + 1));
         }
 
         List<String> templateCategories = extractTemplateColumnValues(targetTable, STAFF_CATEGORY_COLUMN_INDEX);
@@ -1236,13 +1234,13 @@ public final class ReportMerger {
      */
     private static void rewriteTableRows(XWPFTable table, List<List<String>> rows) throws IOException {
         if (table == null || table.getNumberOfRows() == 0) {
-            throw new IOException("Template table is empty.");
+            throw new IOException(Messages.get("error.template.table.empty"));
         }
 
         int templateRowIndex = table.getNumberOfRows() > 1 ? 1 : 0;
         XWPFTableRow templateRow = table.getRow(templateRowIndex);
         if (templateRow == null) {
-            throw new IOException("Template table does not contain a usable row.");
+            throw new IOException(Messages.get("error.template.table.no.row"));
         }
 
         for (int rowIndex = table.getNumberOfRows() - 1; rowIndex > templateRowIndex; rowIndex--) {
@@ -1310,13 +1308,13 @@ public final class ReportMerger {
             List<String> preservedColumnValues,
             int preservedColumnIndex) throws IOException {
         if (table == null || table.getNumberOfRows() == 0) {
-            throw new IOException("Template table is empty.");
+            throw new IOException(Messages.get("error.template.table.empty"));
         }
 
         int templateRowIndex = table.getNumberOfRows() > 1 ? 1 : 0;
         XWPFTableRow templateRow = table.getRow(templateRowIndex);
         if (templateRow == null) {
-            throw new IOException("Template table does not contain a usable row.");
+            throw new IOException(Messages.get("error.template.table.no.row"));
         }
 
         for (int rowIndex = table.getNumberOfRows() - 1; rowIndex > templateRowIndex; rowIndex--) {
