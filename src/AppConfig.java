@@ -22,6 +22,9 @@ public final class AppConfig {
             REPORT_DOC_OUT_PATH_KEY,
             Paths.get(System.getProperty("user.dir"), "output"));
 
+    /**
+     * 설정 제공 유틸리티 클래스이므로 외부에서 인스턴스를 생성하지 못하게 막는다.
+     */
     private AppConfig() {
     }
 

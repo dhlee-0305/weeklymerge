@@ -86,6 +86,9 @@ public final class ReportMerger {
     private static final Set<String> STYLE_REFERENCE_ELEMENTS = Set.of(
             "basedOn", "link", "next", "pStyle", "rStyle", "tblStyle");
 
+    /**
+     * 유틸리티 클래스이므로 외부에서 인스턴스를 생성하지 못하게 막는다.
+     */
     private ReportMerger() {
     }
 
@@ -561,15 +564,34 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 인력 현황 카테고리가 합계 행인지 확인한다.
+     *
+     * @param category 검사할 카테고리명
+     * @return 정규화한 카테고리명이 합계이면 true
+     */
     private static boolean isSumCategory(String category) {
         return "합계".equals(normalizeText(category));
     }
 
-    // '-' 값은 숫자로 파싱되지 않아 0으로 처리되며, 합계가 0이면 공백을 반환한다.
+    /**
+     * 인력 현황 숫자 값을 출력용 문자열로 변환한다.
+     * 합계가 0이면 빈칸으로 보이도록 공백을 반환한다.
+     *
+     * @param value 출력할 숫자 값
+     * @return 0이 아닌 경우 서식이 적용된 숫자 문자열, 0이면 빈 문자열
+     */
     private static String formatStaffValue(BigDecimal value) {
         return value.compareTo(BigDecimal.ZERO) == 0 ? "" : NUMBER_FORMAT.format(value);
     }
 
+    /**
+     * 문자열을 숫자로 변환하고, 변환할 수 없는 값은 0으로 처리한다.
+     * '-' 같은 표시 값도 합산 계산에서는 0으로 간주한다.
+     *
+     * @param value 변환할 문자열
+     * @return 변환된 숫자 또는 0
+     */
     private static BigDecimal safeParseNumber(String value) {
         BigDecimal result = parseNumber(value);
         return result != null ? result : BigDecimal.ZERO;
@@ -781,6 +803,16 @@ public final class ReportMerger {
         cursor.dispose();
     }
 
+    /**
+     * 표 내부 모든 문단의 번호 매김 참조를 결과 문서 기준 ID로 재매핑한다.
+     * 중첩 표도 같은 규칙으로 순회한다.
+     *
+     * @param targetDocument 결과 문서
+     * @param sourceDocument 원본 문서
+     * @param targetTable    번호 참조를 갱신할 표
+     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
+     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
+     */
     private static void remapTableNumbering(
             XWPFDocument targetDocument,
             XWPFDocument sourceDocument,
@@ -799,6 +831,15 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 원본 문서에서 사용하는 스타일을 결과 문서에 사용할 수 있도록 준비한다.
+     * 동일 ID의 스타일 정의가 다르면 새 ID로 복사하고 참조 매핑을 반환한다.
+     *
+     * @param targetDocument 결과 문서
+     * @param sourceDocument 원본 문서
+     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
+     * @return 원본 스타일 ID와 결과 스타일 ID 매핑
+     */
     private static Map<String, String> ensureSourceStylesAvailable(
             XWPFDocument targetDocument,
             XWPFDocument sourceDocument,
@@ -850,10 +891,25 @@ public final class ReportMerger {
         return styleIdMap;
     }
 
+    /**
+     * 두 스타일의 XML 정의가 같은지 비교한다.
+     *
+     * @param sourceStyle 원본 문서 스타일
+     * @param targetStyle 결과 문서 스타일
+     * @return 스타일 정의가 같으면 true
+     */
     private static boolean hasSameStyleDefinition(XWPFStyle sourceStyle, XWPFStyle targetStyle) {
         return sourceStyle.getCTStyle().xmlText().equals(targetStyle.getCTStyle().xmlText());
     }
 
+    /**
+     * 결과 문서에서 충돌하지 않는 복사 스타일 ID를 만든다.
+     *
+     * @param sourceStyleId    원본 스타일 ID
+     * @param targetStyles     결과 문서의 스타일 모음
+     * @param reservedStyleIds 이번 복사 과정에서 이미 예약된 스타일 ID 목록
+     * @return 충돌 없이 사용할 수 있는 스타일 ID
+     */
     private static String buildCopiedStyleId(
             String sourceStyleId,
             XWPFStyles targetStyles,
@@ -868,6 +924,12 @@ public final class ReportMerger {
         return candidate;
     }
 
+    /**
+     * Word 스타일 ID로 쓰기 어렵거나 너무 긴 문자를 안전한 형태로 정리한다.
+     *
+     * @param styleId 정리할 원본 스타일 ID
+     * @return 영문, 숫자, 밑줄만 포함하는 최대 32자 스타일 ID
+     */
     private static String sanitizeStyleId(String styleId) {
         String sanitized = styleId.replaceAll("[^A-Za-z0-9_]", "_");
         if (sanitized.isBlank()) {
@@ -876,6 +938,15 @@ public final class ReportMerger {
         return sanitized.length() > 32 ? sanitized.substring(0, 32) : sanitized;
     }
 
+    /**
+     * 문단의 번호 매김 ID를 원본 문서 기준에서 결과 문서 기준으로 변경한다.
+     *
+     * @param targetDocument 결과 문서
+     * @param sourceDocument 원본 문서
+     * @param paragraph      번호 참조를 갱신할 문단
+     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
+     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
+     */
     private static void remapParagraphNumbering(
             XWPFDocument targetDocument,
             XWPFDocument sourceDocument,
@@ -900,6 +971,12 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * XML 객체 안의 스타일 참조 값을 결과 문서 스타일 ID로 재매핑한다.
+     *
+     * @param xmlObject  스타일 참조를 포함할 수 있는 XML 객체
+     * @param styleIdMap 원본 스타일 ID와 결과 스타일 ID 매핑
+     */
     private static void remapStyleReferences(
             org.apache.xmlbeans.XmlObject xmlObject,
             Map<String, String> styleIdMap) {
@@ -926,6 +1003,15 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * XML 객체 안의 번호 매김 참조 값을 결과 문서 번호 ID로 재매핑한다.
+     *
+     * @param targetDocument 결과 문서
+     * @param sourceDocument 원본 문서
+     * @param xmlObject      번호 참조를 포함할 수 있는 XML 객체
+     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
+     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
+     */
     private static void remapNumberingReferences(
             XWPFDocument targetDocument,
             XWPFDocument sourceDocument,
@@ -967,6 +1053,17 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 원본 문서의 번호 ID에 대응하는 결과 문서 번호 ID를 찾거나 새로 복사한다.
+     * 새 번호 정의는 문서별로 독립되도록 시작 번호와 목록 식별자를 분리한다.
+     *
+     * @param targetDocument 결과 문서
+     * @param sourceDocument 원본 문서
+     * @param sourceNumId    원본 번호 ID
+     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
+     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
+     * @return 결과 문서에서 사용할 번호 ID
+     */
     private static BigInteger resolveTargetNumberingId(
             XWPFDocument targetDocument,
             XWPFDocument sourceDocument,
@@ -1028,6 +1125,12 @@ public final class ReportMerger {
         return targetNumId;
     }
 
+    /**
+     * Word가 서로 다른 원본 문서의 번호 목록을 같은 목록으로 묶지 않도록 목록 식별자를 고유하게 바꾼다.
+     *
+     * @param abstractNum   식별자를 바꿀 추상 번호 정의
+     * @param abstractNumId 결과 문서에서 새로 할당한 추상 번호 ID
+     */
     private static void isolateAbstractNumListIds(CTAbstractNum abstractNum, BigInteger abstractNumId) {
         String uniqueHex = String.format("%08X", abstractNumId.intValue() | 0x70000000);
         try (XmlCursor cursor = abstractNum.newCursor()) {
@@ -1045,6 +1148,12 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 결과 문서 번호 모음에서 사용 가능한 다음 추상 번호 ID를 찾는다.
+     *
+     * @param numbering 결과 문서의 번호 모음
+     * @return 아직 사용되지 않은 추상 번호 ID
+     */
     private static BigInteger nextAvailableAbstractNumId(XWPFNumbering numbering) {
         BigInteger abstractNumId = BigInteger.ZERO;
         while (numbering.getAbstractNum(abstractNumId) != null) {
@@ -1053,6 +1162,12 @@ public final class ReportMerger {
         return abstractNumId;
     }
 
+    /**
+     * 결과 문서 번호 모음에서 사용 가능한 다음 번호 ID를 찾는다.
+     *
+     * @param numbering 결과 문서의 번호 모음
+     * @return 아직 사용되지 않은 번호 ID
+     */
     private static BigInteger nextAvailableNumId(XWPFNumbering numbering) {
         BigInteger numId = BigInteger.ONE;
         while (numbering.getNum(numId) != null) {
@@ -1540,6 +1655,12 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 인력 현황 합계 행의 숫자 셀을 굵게 표시한다.
+     *
+     * @param table        인력 현황 표
+     * @param dataRowCount 템플릿 기준 데이터 행 수
+     */
     private static void applyStaffSummaryRowBoldStyle(XWPFTable table, int dataRowCount) {
         if (table == null || dataRowCount <= 0) {
             return;
@@ -1620,10 +1741,10 @@ public final class ReportMerger {
     }
 
     /**
-     * 셀 텍스트 비교와 출력에 쓰기 좋도록 개행/공백을 정리한다.
+     * 셀 안의 모든 문단 run에 굵게 스타일을 적용하거나 해제한다.
      *
-     * @param value 정리할 원본 문자열
-     * @return 앞뒤 공백과 carriage return이 제거된 문자열
+     * @param cell 스타일을 바꿀 셀
+     * @param bold {@code true}이면 굵게, {@code false}이면 굵게 해제
      */
     private static void setCellBold(XWPFTableCell cell, boolean bold) {
         if (cell == null) {
@@ -1642,6 +1763,12 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 셀 텍스트 비교와 출력에 쓰기 좋도록 개행/공백을 정리한다.
+     *
+     * @param value 정리할 원본 문자열
+     * @return 앞뒤 공백과 carriage return이 제거된 문자열
+     */
     private static String cleanCellText(String value) {
         return value == null ? "" : value.replace("\r", "").trim();
     }
@@ -1745,9 +1872,21 @@ public final class ReportMerger {
         }
     }
 
+    /**
+     * 원본 문서 경로와 열린 Word 문서 객체를 함께 보관한다.
+     *
+     * @param path     원본 문서 경로
+     * @param document 열린 Word 문서
+     */
     private record SourceDocument(Path path, XWPFDocument document) {
     }
 
+    /**
+     * 영업 현황 행의 정리된 셀 값과 원본 셀 서식을 함께 보관한다.
+     *
+     * @param values      정리된 셀 값 목록
+     * @param sourceCells 원본 셀 목록
+     */
     private record SalesRowData(List<String> values, List<XWPFTableCell> sourceCells) {
     }
 }

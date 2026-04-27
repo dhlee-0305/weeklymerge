@@ -22,9 +22,17 @@ public final class Messages {
         }
     }
 
+    /**
+     * 메시지 제공 유틸리티 클래스이므로 외부에서 인스턴스를 생성하지 못하게 막는다.
+     */
     private Messages() {
     }
 
+    /**
+     * 현재 작업 폴더의 messages.properties를 읽어 메시지 목록에 적재한다.
+     *
+     * @return 작업 폴더에서 메시지 파일을 정상 로드했으면 true
+     */
     private static boolean tryLoadFromWorkingDirectory() {
         var path = Paths.get(MESSAGES_FILE_NAME);
         if (!Files.exists(path)) {
@@ -38,6 +46,9 @@ public final class Messages {
         }
     }
 
+    /**
+     * 클래스패스에 포함된 기본 messages.properties를 읽어 메시지 목록에 적재한다.
+     */
     private static void tryLoadFromClasspath() {
         try (InputStream stream = Messages.class.getResourceAsStream("/" + MESSAGES_FILE_NAME)) {
             if (stream != null) {

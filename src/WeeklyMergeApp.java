@@ -178,6 +178,12 @@ public class WeeklyMergeApp extends JFrame {
 
         // 병합은 EDT 밖에서 실행해 UI가 멈추지 않도록 한다.
         SwingWorker<Path, String> worker = new SwingWorker<>() {
+            /**
+             * 선택된 보고서 파일을 백그라운드에서 병합하고 결과 파일 경로를 반환한다.
+             *
+             * @return 생성된 병합 결과 문서 경로
+             * @throws Exception 병합 처리 중 파일 접근 또는 문서 처리에 실패한 경우
+             */
             @Override
             protected Path doInBackground() throws Exception {
                 return ReportMerger.mergeReports(sourceFiles, AppConfig.REPORT_DOC_OUT_PATH, (percent, message) -> {
@@ -187,6 +193,11 @@ public class WeeklyMergeApp extends JFrame {
                 });
             }
 
+            /**
+             * 백그라운드 병합 단계에서 전달된 진행 메시지를 진행 팝업에 표시한다.
+             *
+             * @param chunks 아직 처리되지 않은 진행 메시지 목록
+             */
             @Override
             protected void process(List<String> chunks) {
                 // 여러 메시지가 한 번에 전달되면 가장 최근 메시지만 표시한다.
@@ -198,6 +209,9 @@ public class WeeklyMergeApp extends JFrame {
                 progressDialog.updateMessage(latestMessage);
             }
 
+            /**
+             * 백그라운드 병합 완료 후 성공 또는 실패 상태를 같은 진행 팝업에 표시한다.
+             */
             @Override
             protected void done() {
                 try {
