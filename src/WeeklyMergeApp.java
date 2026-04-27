@@ -144,14 +144,17 @@ public class WeeklyMergeApp extends JFrame {
      * 같은 팝업 안에서 최종 성공 또는 실패 결과까지 이어서 보여 준다.
      */
     private void mergeSelectedFiles() {
-        // 선택된 파일이 없으면 병합을 시작하지 않는다.
+        // 선택이 없으면 목록에 조회된 모든 파일을 병합 대상으로 사용한다.
+        List<String> filesToMerge;
         if (selectionOrder.isEmpty()) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    Messages.get("notice.select.files"),
-                    Messages.get("dialog.title.notice"),
-                    JOptionPane.INFORMATION_MESSAGE);
-            return;
+            boolean hasRealFiles = !listModel.isEmpty()
+                    && !Messages.get("filelist.empty").equals(listModel.get(0));
+            if (!hasRealFiles) {
+                return;
+            }
+            filesToMerge = java.util.Collections.list(listModel.elements());
+        } else {
+            filesToMerge = selectionOrder;
         }
 
         // 출력 폴더가 없으면 결과 파일을 저장할 수 없으므로 병합을 시작하지 않는다.
@@ -164,7 +167,7 @@ public class WeeklyMergeApp extends JFrame {
             return;
         }
 
-        List<Path> sourceFiles = selectionOrder.stream()
+        List<Path> sourceFiles = filesToMerge.stream()
                 .map(name -> AppConfig.REPORT_DOC_PATH.resolve(name))
                 .collect(Collectors.toList());
 

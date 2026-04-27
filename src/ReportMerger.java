@@ -36,6 +36,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTNum;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTNumLvl;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRow;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle;
@@ -1004,15 +1005,44 @@ public final class ReportMerger {
 
         CTAbstractNum copiedAbstractNum = (CTAbstractNum) sourceAbstractNum.getCTAbstractNum().copy();
         remapStyleReferences(copiedAbstractNum, styleIdMap);
-        copiedAbstractNum.setAbstractNumId(nextAvailableAbstractNumId(targetNumbering));
+        BigInteger newAbstractNumId = nextAvailableAbstractNumId(targetNumbering);
+        copiedAbstractNum.setAbstractNumId(newAbstractNumId);
+        // nsid/tmpl이 같으면 Word가 동일 목록으로 인식해 번호를 연속 할당하므로 고유값으로 교체한다.
+        isolateAbstractNumListIds(copiedAbstractNum, newAbstractNumId);
         BigInteger targetAbstractNumId = targetNumbering.addAbstractNum(new XWPFAbstractNum(copiedAbstractNum));
         BigInteger targetNumId = nextAvailableNumId(targetNumbering);
         CTNum copiedNum = (CTNum) sourceNum.getCTNum().copy();
         copiedNum.setNumId(targetNumId);
         copiedNum.getAbstractNumId().setVal(targetAbstractNumId);
+        // 기존 lvlOverride를 제거하고 모든 레벨에 startOverride=1을 추가해 팀 문서마다 번호가 1부터 시작되도록 강제한다.
+        while (copiedNum.sizeOfLvlOverrideArray() > 0) {
+            copiedNum.removeLvlOverride(0);
+        }
+        for (int level = 0; level <= 8; level++) {
+            CTNumLvl lvlOverride = copiedNum.addNewLvlOverride();
+            lvlOverride.setIlvl(BigInteger.valueOf(level));
+            lvlOverride.addNewStartOverride().setVal(BigInteger.ONE);
+        }
         targetNumbering.addNum(new XWPFNum(copiedNum, targetNumbering));
         numberingIdMap.put(sourceNumId, targetNumId);
         return targetNumId;
+    }
+
+    private static void isolateAbstractNumListIds(CTAbstractNum abstractNum, BigInteger abstractNumId) {
+        String uniqueHex = String.format("%08X", abstractNumId.intValue() | 0x70000000);
+        try (XmlCursor cursor = abstractNum.newCursor()) {
+            while (cursor.hasNextToken()) {
+                cursor.toNextToken();
+                javax.xml.namespace.QName name = cursor.getName();
+                if (name == null || !WORDPROCESSINGML_NAMESPACE.equals(name.getNamespaceURI())) {
+                    continue;
+                }
+                String localPart = name.getLocalPart();
+                if ("nsid".equals(localPart) || "tmpl".equals(localPart)) {
+                    cursor.setAttributeText(WORD_VAL_ATTRIBUTE, uniqueHex);
+                }
+            }
+        }
     }
 
     private static BigInteger nextAvailableAbstractNumId(XWPFNumbering numbering) {
