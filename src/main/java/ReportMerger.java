@@ -79,10 +79,9 @@ public final class ReportMerger {
     private static final DecimalFormat NUMBER_FORMAT = new DecimalFormat("0.################");
     private static final ProgressListener NO_OP_PROGRESS_LISTENER = (percent, message) -> {
     };
-    private static final String WORDPROCESSINGML_NAMESPACE =
-            "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-    private static final javax.xml.namespace.QName WORD_VAL_ATTRIBUTE =
-            new javax.xml.namespace.QName(WORDPROCESSINGML_NAMESPACE, "val");
+    private static final String WORDPROCESSINGML_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private static final javax.xml.namespace.QName WORD_VAL_ATTRIBUTE = new javax.xml.namespace.QName(
+            WORDPROCESSINGML_NAMESPACE, "val");
     private static final Set<String> STYLE_REFERENCE_ELEMENTS = Set.of(
             "basedOn", "link", "next", "pStyle", "rStyle", "tblStyle");
 
@@ -146,9 +145,11 @@ public final class ReportMerger {
 
         try (InputStream templateStream = Files.newInputStream(templatePath);
                 XWPFDocument targetDocument = new XWPFDocument(templateStream)) {
-            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.template.loaded"));
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                    Messages.get("progress.template.loaded"));
             applyReportDate(targetDocument);
-            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.date.applied"));
+            completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                    Messages.get("progress.date.applied"));
 
             List<SourceDocument> sourceDocuments = new ArrayList<>();
             try {
@@ -172,7 +173,8 @@ public final class ReportMerger {
                 completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
                         Messages.get("progress.section.sales"));
                 appendIssuesSectionToDocumentEnd(targetDocument, sourceDocuments);
-                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps, Messages.get("progress.section.issues"));
+                completedSteps = reportProgress(listener, completedSteps + 1, totalSteps,
+                        Messages.get("progress.section.issues"));
 
                 // 현재 날짜 접두어와 고정 suffix를 조합해 결과 파일명을 만든다.
                 Path outputFile = outputDirectory.resolve(
@@ -751,7 +753,7 @@ public final class ReportMerger {
         XmlCursor cursor = document.getDocument().getBody().newCursor();
         cursor.toEndToken();
         XWPFParagraph paragraph = document.insertNewParagraph(cursor);
-        cursor.dispose();
+        cursor.close();
         paragraph.createRun().addBreak();
     }
 
@@ -766,7 +768,7 @@ public final class ReportMerger {
         XmlCursor cursor = document.getDocument().getBody().newCursor();
         cursor.toEndToken();
         XWPFParagraph paragraph = document.insertNewParagraph(cursor);
-        cursor.dispose();
+        cursor.close();
         paragraph.setAlignment(ParagraphAlignment.LEFT);
         XWPFRun run = paragraph.createRun();
         run.setFontSize(12);
@@ -800,7 +802,7 @@ public final class ReportMerger {
             remapTableNumbering(targetDocument, sourceDocument, appendedTable, numberingIdMap, styleIdMap);
         }
 
-        cursor.dispose();
+        cursor.close();
     }
 
     /**
