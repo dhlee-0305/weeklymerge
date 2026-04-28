@@ -794,43 +794,13 @@ public final class ReportMerger {
             XWPFParagraph appendedParagraph = targetDocument.insertNewParagraph(cursor);
             appendedParagraph.getCTP().set((CTP) paragraph.getCTP().copy());
             remapStyleReferences(appendedParagraph.getCTP(), styleIdMap);
-            remapParagraphNumbering(targetDocument, sourceDocument, appendedParagraph, numberingIdMap, styleIdMap);
         } else if (bodyElement instanceof XWPFTable table) {
             XWPFTable appendedTable = targetDocument.insertNewTbl(cursor);
             appendedTable.getCTTbl().set((CTTbl) table.getCTTbl().copy());
             remapStyleReferences(appendedTable.getCTTbl(), styleIdMap);
-            remapTableNumbering(targetDocument, sourceDocument, appendedTable, numberingIdMap, styleIdMap);
         }
 
         cursor.close();
-    }
-
-    /**
-     * 표 내부 모든 문단의 번호 매김 참조를 결과 문서 기준 ID로 재매핑한다.
-     * 중첩 표도 같은 규칙으로 순회한다.
-     *
-     * @param targetDocument 결과 문서
-     * @param sourceDocument 원본 문서
-     * @param targetTable    번호 참조를 갱신할 표
-     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
-     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
-     */
-    private static void remapTableNumbering(
-            XWPFDocument targetDocument,
-            XWPFDocument sourceDocument,
-            XWPFTable targetTable,
-            Map<BigInteger, BigInteger> numberingIdMap,
-            Map<String, String> styleIdMap) {
-        for (XWPFTableRow row : targetTable.getRows()) {
-            for (XWPFTableCell cell : row.getTableCells()) {
-                for (XWPFParagraph paragraph : cell.getParagraphs()) {
-                    remapParagraphNumbering(targetDocument, sourceDocument, paragraph, numberingIdMap, styleIdMap);
-                }
-                for (XWPFTable nestedTable : cell.getTables()) {
-                    remapTableNumbering(targetDocument, sourceDocument, nestedTable, numberingIdMap, styleIdMap);
-                }
-            }
-        }
     }
 
     /**
@@ -938,39 +908,6 @@ public final class ReportMerger {
             return "style";
         }
         return sanitized.length() > 32 ? sanitized.substring(0, 32) : sanitized;
-    }
-
-    /**
-     * 문단의 번호 매김 ID를 원본 문서 기준에서 결과 문서 기준으로 변경한다.
-     *
-     * @param targetDocument 결과 문서
-     * @param sourceDocument 원본 문서
-     * @param paragraph      번호 참조를 갱신할 문단
-     * @param numberingIdMap 원본 번호 ID와 결과 번호 ID 매핑
-     * @param styleIdMap     원본 스타일 ID와 결과 스타일 ID 매핑
-     */
-    private static void remapParagraphNumbering(
-            XWPFDocument targetDocument,
-            XWPFDocument sourceDocument,
-            XWPFParagraph paragraph,
-            Map<BigInteger, BigInteger> numberingIdMap,
-            Map<String, String> styleIdMap) {
-        if (!paragraph.getCTP().isSetPPr()
-                || !paragraph.getCTP().getPPr().isSetNumPr()
-                || !paragraph.getCTP().getPPr().getNumPr().isSetNumId()) {
-            return;
-        }
-
-        BigInteger sourceNumId = paragraph.getCTP().getPPr().getNumPr().getNumId().getVal();
-        BigInteger targetNumId = resolveTargetNumberingId(
-                targetDocument,
-                sourceDocument,
-                sourceNumId,
-                numberingIdMap,
-                styleIdMap);
-        if (targetNumId != null) {
-            paragraph.getCTP().getPPr().getNumPr().getNumId().setVal(targetNumId);
-        }
     }
 
     /**
