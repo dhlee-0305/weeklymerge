@@ -90,7 +90,7 @@ public class WeeklyMergeApp extends JFrame {
 
     /**
      * 원본 폴더에서 병합 가능한 {@code .docx} 파일을 읽어 목록에 표시한다.
-     * 템플릿 파일과 이전에 생성된 결과 파일은 제외한다.
+     * 템플릿 파일과 이전에 생성된 결과 파일, 임시 파일은 제외한다.
      */
     private void loadDocFiles() {
         listModel.clear();
@@ -113,6 +113,8 @@ public class WeeklyMergeApp extends JFrame {
                     .map(Path::toString)
                     // 병합 입력 대상으로는 Word 문서만 허용한다.
                     .filter(name -> name.toLowerCase().endsWith(".docx"))
+                    // MS Word가 문서를 열어둘 때 생성하는 잠금/임시 파일(~$로 시작)은 병합 대상에서 제외한다.
+                    .filter(name -> !name.startsWith("~$"))
                     // 템플릿 문서는 병합 대상 보고서가 아니므로 목록에서 제외한다.
                     .filter(name -> !name.equalsIgnoreCase(ReportMerger.TEMPLATE_FILE_NAME))
                     // 이전 병합 결과가 다시 입력으로 선택되지 않도록 결과 파일은 제외한다.
